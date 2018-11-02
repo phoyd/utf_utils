@@ -20,6 +20,7 @@ set(Sources
     test/test_conversions_32.cpp
     test/test_main.cpp
     test/test_main.h
+    test/phoyd.h
 )
 
 include_directories(test)
@@ -40,15 +41,15 @@ if(CMAKE_CXX_COMPILER STREQUAL clang++)
     set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic -Wextra")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -pedantic -Wextra -Wno-unused-parameter")
 
-    set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=westmere -Wall -pedantic -Wextra")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=westmere -std=c++14 -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
+    set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic -Wextra")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -std=c++14 -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
 
 elseif(CMAKE_CXX_COMPILER STREQUAL g++)
 
     set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -pedantic -Wextra")
 
-    set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=westmere -Wall -pedantic")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=westmere -std=c++14 -Wall -pedantic -Wextra")
+    set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -std=c++14 -Wall -pedantic -Wextra")
 
 endif()

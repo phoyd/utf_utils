@@ -135,6 +135,25 @@ Convert32_BoostText(string const& src, size_t reps, u32string& dst)
 
     return dstLen;
 }
+// ----
+std::ptrdiff_t
+Convert32_Phoyd(string const& src, size_t reps, u32string& dst)
+{
+    struct errors
+    {
+        [[noreturn]] static void data_error() { throw std::runtime_error("invalid data");  }
+        [[noreturn]] static void buffer_error() { throw std::runtime_error("output buffer too small"); }
+    };
+
+    typedef phoyd::simple_unicode_converter<errors> converter;
+
+    ptrdiff_t dslen=0;
+    for (uint64_t i=0;i<reps;i++)
+    {
+        dslen=converter::convert(src.begin(),src.end(),dst.begin(),dst.end(),converter::utf8_filter{},converter::utf32_filter{},false);
+    }
+    return dslen;
+}
 
 //--------------------------------------------------------------------------------------------------
 //
@@ -410,6 +429,10 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
     times.push_back(tdiff);
     algos.emplace_back("Boost.Text");
 
+    tdiff = TestOneConversion32(&Convert32_Phoyd, u8src, reps, u32answer, "phoyd");
+    times.push_back(tdiff);
+    algos.emplace_back("phoyd");
+
     tdiff = TestOneConversion32(&Convert32_Hoehrmann, u8src, reps, u32answer, "hoehrmann");
     times.push_back(tdiff);
     algos.emplace_back("Hoehrmann");
@@ -479,7 +502,7 @@ TestFiles32(string const& dataDir, size_t repShift, file_list const& files, bool
         all_times.emplace_back(std::move(times));
     }
 
-    printf("\ntabular summary:\nfile\\algo");
+    printf("\n> tabular summary:\n> file\\algo");
     for (auto const& algo : algos)
     {
         printf(", %s", algo.c_str());
@@ -488,7 +511,7 @@ TestFiles32(string const& dataDir, size_t repShift, file_list const& files, bool
 
     for (size_t i = 0;  i < files.size();  ++i)
     {
-        printf("%s", files[i].c_str());
+        printf("> %s", files[i].c_str());
 
         for (size_t j = 0;  j < all_times[i].size();  ++j)
         {

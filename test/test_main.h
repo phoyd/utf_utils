@@ -27,6 +27,7 @@
 
 #include "av_utf8.h"
 #include "boost_utf8.hpp"
+#include "phoyd.h"
 #include "hoehrmann.h"
 #include "llvm_convert_utf.h"
 #include "utf_utils.h"
