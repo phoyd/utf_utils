@@ -11,6 +11,7 @@
 
 //#include <cstdint>
 #include <string>
+#include <cstddef>
 
 //- Detect the compiler; only Clang, GCC, and Visual C++ are currently supported.
 //

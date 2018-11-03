@@ -7,12 +7,18 @@
 #include "utf_utils.h"
 #include <cstdio>
 
+#ifdef __arm__
+#define NO_SSE
+#endif
+
+#ifndef NO_SSE
 #if defined KEWB_PLATFORM_LINUX
     #include <emmintrin.h>
     #include <immintrin.h>
     #include <xmmintrin.h>
 #elif defined KEWB_PLATFORM_WINDOWS
     #include <intrin.h>
+#endif
 #endif
 
 namespace uu {
@@ -497,6 +503,7 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char3
 ///     indicate an error was encountered.
 //--------------------------------------------------------------------------------------------------
 //
+#ifndef NO_SSE
 KEWB_ALIGN_FN std::ptrdiff_t
 UtfUtils::SseBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept
 {
@@ -543,6 +550,7 @@ UtfUtils::SseBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32
 
     return pDst - pDstOrig;
 }
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /// \brief  Converts a sequence of UTF-8 code units to a sequence of UTF-16 code units.
@@ -658,6 +666,7 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char1
 ///     indicate an error was encountered.
 //--------------------------------------------------------------------------------------------------
 //
+#ifndef NO_SSE
 KEWB_ALIGN_FN std::ptrdiff_t
 UtfUtils::SseBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept
 {
@@ -704,6 +713,7 @@ UtfUtils::SseBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16
 
     return pDst - pDstOrig;
 }
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /// \brief  Converts a sequence of UTF-8 code units to a sequence of UTF-32 code points.
@@ -819,6 +829,7 @@ UtfUtils::FastSmallTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, cha
 ///     indicate an error was encountered.
 //--------------------------------------------------------------------------------------------------
 //
+#ifndef NO_SSE
 KEWB_ALIGN_FN std::ptrdiff_t
 UtfUtils::SseSmallTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept
 {
@@ -865,6 +876,7 @@ UtfUtils::SseSmallTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char
 
     return pDst - pDstOrig;
 }
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /// \brief  Converts a sequence of UTF-8 code units to a sequence of UTF-16 code units.
@@ -980,6 +992,7 @@ UtfUtils::FastSmallTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, cha
 ///     indicate an error was encountered.
 //--------------------------------------------------------------------------------------------------
 //
+#ifndef NO_SSE
 KEWB_ALIGN_FN std::ptrdiff_t
 UtfUtils::SseSmallTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept
 {
@@ -1026,7 +1039,7 @@ UtfUtils::SseSmallTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char
 
     return pDst - pDstOrig;
 }
-
+#endif
 //--------------------------------------------------------------------------------------------------
 /// \brief  Trace converts a sequence of UTF-8 code units to a sequence of UTF-32 code points.
 ///
@@ -1122,6 +1135,7 @@ UtfUtils::ConvertWithTrace(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t
 ///     A reference to a non-null pointer defining the start of the code point output range.
 //--------------------------------------------------------------------------------------------------
 //
+#ifndef NO_SSE
 KEWB_FORCE_INLINE void
 UtfUtils::ConvertAsciiWithSse(char8_t const*& pSrc, char32_t*& pDst) noexcept
 {
@@ -1162,7 +1176,7 @@ UtfUtils::ConvertAsciiWithSse(char8_t const*& pSrc, char32_t*& pDst) noexcept
         pDst += incr;
     }
 }
-
+#endif
 //--------------------------------------------------------------------------------------------------
 /// \brief  Converts a sequence of ASCII UTF-8 code units to a sequence of UTF-16 code units.
 ///
@@ -1176,6 +1190,7 @@ UtfUtils::ConvertAsciiWithSse(char8_t const*& pSrc, char32_t*& pDst) noexcept
 ///     A reference to a non-null pointer defining the start of the code unit output range.
 //--------------------------------------------------------------------------------------------------
 //
+#ifndef NO_SSE
 KEWB_FORCE_INLINE void
 UtfUtils::ConvertAsciiWithSse(char8_t const*& pSrc, char16_t*& pDst) noexcept
 {
@@ -1209,6 +1224,7 @@ UtfUtils::ConvertAsciiWithSse(char8_t const*& pSrc, char16_t*& pDst) noexcept
         pDst += incr;
     }
 }
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /// \brief  Returns the number of trailing 0-bits in an integer, starting with the least

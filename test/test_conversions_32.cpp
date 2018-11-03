@@ -1,4 +1,7 @@
 ﻿#include "test_main.h"
+#ifdef __arm__
+#define NO_SSE
+#endif
 
 using namespace std;
 using namespace uu;
@@ -211,6 +214,7 @@ Convert32_KewbFastSmTab(string const& src, size_t reps, u32string& dst)
 
 //--------------
 //
+#ifndef NO_SSE
 ptrdiff_t
 Convert32_KewbSseSmTab(string const& src, size_t reps, u32string& dst)
 {
@@ -226,7 +230,7 @@ Convert32_KewbSseSmTab(string const& src, size_t reps, u32string& dst)
 
     return dstLen;
 }
-
+#endif
 //--------------------------------------------------------------------------------------------------
 //
 ptrdiff_t
@@ -265,6 +269,7 @@ Convert32_KewbFastBgTab(string const& src, size_t reps, u32string& dst)
 
 //--------------
 //
+#ifndef NO_SSE
 ptrdiff_t
 Convert32_KewbSseBgTab(string const& src, size_t reps, u32string& dst)
 {
@@ -280,6 +285,7 @@ Convert32_KewbSseBgTab(string const& src, size_t reps, u32string& dst)
 
     return dstLen;
 }
+#endif
 
 //--------------------------------------------------------------------------------------------------
 //
@@ -319,6 +325,7 @@ Convert32_KewbFast(string const& src, size_t reps, u32string& dst)
 
 //--------------
 //
+#ifndef NO_SSE
 ptrdiff_t
 Convert32_KewbSse(string const& src, size_t reps, u32string& dst)
 {
@@ -334,7 +341,7 @@ Convert32_KewbSse(string const& src, size_t reps, u32string& dst)
 
     return dstLen;
 }
-
+#endif
 //--------------------------------------------------------------------------------------------------
 //
 int64_t
@@ -454,7 +461,7 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
         tdiff = TestOneConversion32(&Convert32_KewbFastBgTab, u8src, reps, u32answer, "kewb-fast-big-table");
         times.push_back(tdiff);
         algos.emplace_back("kewb-fast-big-table");
-
+#ifndef NO_SSE
         tdiff = TestOneConversion32(&Convert32_KewbSseSmTab, u8src, reps, u32answer, "kewb-sse-small-table");
         times.push_back(tdiff);
         algos.emplace_back("kewb-sse-small-table");
@@ -462,6 +469,7 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
         tdiff = TestOneConversion32(&Convert32_KewbSseBgTab, u8src, reps, u32answer, "kewb-sse-big-table");
         times.push_back(tdiff);
         algos.emplace_back("kewb-sse-big-table");
+#endif
     }
     else
     {
@@ -472,10 +480,11 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
         tdiff = TestOneConversion32(&Convert32_KewbFast, u8src, reps, u32answer, "kewb-fast");
         times.push_back(tdiff);
         algos.emplace_back("kewb-fast");
-
+#ifndef NO_SSE
         tdiff = TestOneConversion32(&Convert32_KewbSse, u8src, reps, u32answer, "kewb-sse");
         times.push_back(tdiff);
         algos.emplace_back("kewb-sse");
+#endif
     }
 
     return tuple<name_list, time_list>(algos, times);
