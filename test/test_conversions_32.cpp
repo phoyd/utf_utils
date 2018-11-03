@@ -148,7 +148,7 @@ Convert32_Phoyd(string const& src, size_t reps, u32string& dst)
         [[noreturn]] static void buffer_error() { throw std::runtime_error("output buffer too small"); }
     };
 
-    typedef phoyd::simple_unicode_converter<errors> converter;
+    typedef xlang::impl::simple_unicode_converter<errors> converter;
 
     ptrdiff_t dslen=0;
     for (uint64_t i=0;i<reps;i++)
@@ -416,6 +416,7 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
 
     //- Run the individual tests.
     //
+#if COMPARE_ALL
     tdiff = TestOneConversion32(&Convert32_Iconv, u8src, reps, u32answer, "iconv");
     times.push_back(tdiff);
     algos.emplace_back("iconv");
@@ -436,13 +437,14 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
     times.push_back(tdiff);
     algos.emplace_back("Boost.Text");
 
+    tdiff = TestOneConversion32(&Convert32_Hoehrmann, u8src, reps, u32answer, "hoehrmann");
+    times.push_back(tdiff);
+    algos.emplace_back("Hoehrmann");
+#endif
     tdiff = TestOneConversion32(&Convert32_Phoyd, u8src, reps, u32answer, "phoyd");
     times.push_back(tdiff);
     algos.emplace_back("phoyd");
 
-    tdiff = TestOneConversion32(&Convert32_Hoehrmann, u8src, reps, u32answer, "hoehrmann");
-    times.push_back(tdiff);
-    algos.emplace_back("Hoehrmann");
 
     if (tblCmp)
     {

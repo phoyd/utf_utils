@@ -153,7 +153,7 @@ Convert16_Phoyd(string const& src, size_t reps, u16string& dst)
         [[noreturn]] static void buffer_error() { throw std::runtime_error("output buffer too small"); }
     };
 
-    typedef phoyd::simple_unicode_converter<errors> converter;
+    typedef xlang::impl::simple_unicode_converter<errors> converter;
 
     ptrdiff_t dslen=0;
     for (uint64_t i=0;i<reps;i++)
@@ -419,6 +419,7 @@ TestAllConversions16(string const& fname, bool isFile, size_t repShift, bool tbl
     u16answer.resize(u8src.size(), 0);
     u16answer.resize((size_t) Convert16_Iconv(u8src, 1, u16answer));
 
+#if COMPARE_ALL
     //- Run the individual tests.
     //
     tdiff = TestOneConversion16(&Convert16_Iconv, u8src, reps, u16answer, "iconv");
@@ -442,14 +443,14 @@ TestAllConversions16(string const& fname, bool isFile, size_t repShift, bool tbl
     tdiff = TestOneConversion16(&Convert16_BoostText, u8src, reps, u16answer, "Boost.Text");
     times.push_back(tdiff);
     algos.emplace_back("Boost.Text");
-
-    tdiff = TestOneConversion16(&Convert16_Phoyd, u8src, reps, u16answer, "phoyd");
-    times.push_back(tdiff);
-    algos.emplace_back("phoyd");
-
+ 
     tdiff = TestOneConversion16(&Convert16_Hoehrmann, u8src, reps, u16answer, "hoehrmann");
     times.push_back(tdiff);
     algos.emplace_back("Hoehrmann");
+ #endif
+    tdiff = TestOneConversion16(&Convert16_Phoyd, u8src, reps, u16answer, "phoyd");
+    times.push_back(tdiff);
+    algos.emplace_back("phoyd");
 
     if (tblCmp)
     {
