@@ -503,7 +503,6 @@ public:
                 std::min(in_len / SrcFilter::max_cv_len, out_len / DestFilter::max_cv_len);
             auto batchlen = safelen / 4;
             if (batchlen == 0) break;
-            int i = 0;
 
             for (int i = 0; i < batchlen; i++)
             {
