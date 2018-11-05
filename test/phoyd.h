@@ -278,6 +278,11 @@ public:
         {
             return b; // always valid
         }
+        // We could add checks for invalid values of b here, like this one
+        // after 'if (b<=0x7f)':
+        //  else if (b<=0xbf) invalid();
+        // buf this adds an extra branch - better check
+        // the bit pattern for b later with 'store_ck' (branchless).
         else if (b <= 0xdf) // 0x80..0x7ff
         {
             uint32_t cp = 0;
@@ -285,7 +290,7 @@ public:
             // see "Byte Sequence in Binary"
             auto fail = (store_ck<0xc0, 6, 5>(cp, b) | store_ck<0x80, 0, 6>(cp, b1));
             // this sequence must return a code point from
-            // the range above. Smalle code points are an overlong encoding
+            // the range above. Smaller code points are an overlong encoding
             // error.
             if (!fail && (cp >= 0x80)) return cp;
         }
@@ -294,7 +299,7 @@ public:
             uint32_t cp = 0;
             uint8_t b1 = in();
             uint8_t b2 = in();
-
+            // attn: undefine order of evaulation with |
             auto fail = (store_ck<0xe0, 12, 4>(cp, b) | store_ck<0x80, 6, 6>(cp, b1) |
                          store_ck<0x80, 0, 6>(cp, b2));
             // check if cp is in the surrogate area
