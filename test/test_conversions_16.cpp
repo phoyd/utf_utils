@@ -2,6 +2,7 @@
 #ifdef __arm__
 #define NO_SSE
 #endif
+#define COMPARE_ALL 0
 
 using namespace std;
 using namespace uu;
@@ -147,18 +148,15 @@ Convert16_BoostText(string const& src, size_t reps, u16string& dst)
 std::ptrdiff_t
 Convert16_Phoyd(string const& src, size_t reps, u16string& dst)
 {
-    struct errors
-    {
-        [[noreturn]] static void data_error() { throw std::runtime_error("invalid data");  }
-        [[noreturn]] static void buffer_error() { throw std::runtime_error("output buffer too small"); }
-    };
-
-    typedef xlang::impl::simple_unicode_converter<errors> converter;
+    namespace converter = xlang::impl::code_converter;
 
     ptrdiff_t dslen=0;
     for (uint64_t i=0;i<reps;i++)
     {
-        dslen=converter::convert(src.begin(),src.end(),dst.begin(),dst.end(),converter::utf8_filter{},converter::utf16_filter{},false);
+        size_t len;
+        auto status=converter::convert(src.begin(),src.end(),dst.begin(),dst.end(),converter::utf8_filter{},converter::utf16_filter{},len);
+        if (status!=converter::converter_result::OK) return -1;
+        dslen=static_cast<ptrdiff_t>(len);
     }
     return dslen;
 }
