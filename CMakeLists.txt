@@ -1,6 +1,9 @@
 cmake_minimum_required (VERSION 3.5)
 project (utf_utils)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 include_directories(src)
 
 set(Sources
@@ -39,17 +42,19 @@ endif()
 if(CMAKE_CXX_COMPILER STREQUAL clang++)
 
     set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic -Wextra")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -pedantic -Wextra -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -pedantic -Wextra -Wno-unused-parameter")
 
     set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic -Wextra")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -std=c++14 -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
 
 elseif(CMAKE_CXX_COMPILER STREQUAL g++)
 
     set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -std=c++14 -Wall -pedantic -Wextra")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g  -Wall -pedantic -Wextra")
 
     set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -std=c++14 -Wall -pedantic -Wextra")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -Wall -pedantic -Wextra")
 
 endif()
+
+
