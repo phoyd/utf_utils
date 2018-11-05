@@ -1,3 +1,7 @@
+## This fork 
+
+Adds very fast converter (phoyd.net) to the test.
+
 ## Overview
 
 This is the repo for my work on high-speed conversion/transcoding of UTF-8 to UTF-32/UTF-16.  The interesting bits are currently implemented in the `UtfUtils` class defined in the files `src/utf_utils.(h|cpp)`.  A small test suite is included in the repo, and instructions are provided below for building and running on Linux and Windows.
