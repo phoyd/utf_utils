@@ -44,7 +44,7 @@ enum class converter_result
 // must be correct at call size
 //
 template <class R, class A>
-static constexpr R narrow_cast(const A& a)
+constexpr R narrow_cast(const A& a)
 {
     return static_cast<R>(a);
 }
@@ -54,7 +54,7 @@ static constexpr R narrow_cast(const A& a)
 // without conversion. Specialize for EBCDIC, UTF-16
 //
 template <class SrcFilter, class DestFilter>
-static bool constexpr is_passthrough(typename SrcFilter::cvt v)
+bool constexpr is_passthrough(typename SrcFilter::cvt v)
 {
     return v <= 0x7f; // ASCII plane
 }
@@ -62,7 +62,7 @@ static bool constexpr is_passthrough(typename SrcFilter::cvt v)
 //
 // Codepoints in the surrogate area or after U++10FFFF are invalid.
 //
-static constexpr bool is_invalid_cp(uint32_t u)
+constexpr bool is_invalid_cp(uint32_t u)
 {
     return ((u >= 0xd800) && (u <= 0xdfff)) || (u > 0x10ffff);
 }
@@ -70,14 +70,14 @@ static constexpr bool is_invalid_cp(uint32_t u)
 // They can only be used in the UTF16 encoding, to mark a "surrogate pair",
 // an encoding to map code points above 0x10000 into UTF16.
 //
-static constexpr bool is_high_surrogate(uint32_t u) { return ((u >= 0xd800) && (u <= 0xdbff)); }
-static constexpr bool is_low_surrogate(uint32_t u) { return ((u >= 0xdc00) && (u <= 0xdfff)); }
+constexpr bool is_high_surrogate(uint32_t u) { return ((u >= 0xd800) && (u <= 0xdbff)); }
+constexpr bool is_low_surrogate(uint32_t u) { return ((u >= 0xdc00) && (u <= 0xdfff)); }
 
 //
 // return codepoint, but only if it is valid, otherwise assume malformed data
 // and rise exception
 //
-static constexpr uint32_t if_valid(uint32_t u)
+constexpr uint32_t if_valid(uint32_t u)
 {
     if (is_invalid_cp(u)) { invalid(); }
     else
@@ -319,6 +319,18 @@ public:
     }
 };
 
+// Specializations for utf16
+template <>
+bool constexpr is_passthrough<utf16_filter,utf32_filter>(utf16_filter::cvt v)
+{
+    return v < 0xd800; // pre surrogate is safe
+}
+template <>
+bool constexpr is_passthrough<utf32_filter,utf16_filter>(utf32_filter::cvt v)
+{
+    return v < 0xd800; // pre surrogate is safe
+}
+
 // 'convert' tries to convert the *complete* range from 'in_start' to
 // 'in_end' and writes the result to the 'out_start' iterator, after
 // processing the data with 'src_filter' and 'dst_filter'.
@@ -457,6 +469,7 @@ public:
     static size_t convert(In in_start, In in_end, Out out_start, Out out_end,
                           SrcFilter&& src_filter, DestFilter&& dst_filter)
     {
+        auto out_start_org=out_start; // (out-start-out_start_org) => number of values written
         // the reader closure reads from the input iterator
         auto reader_checked = [&in_start, in_end]() {
             if (GSL_LIKELY(in_start != in_end)) { return *in_start++; }
@@ -475,7 +488,6 @@ public:
             }
         };
         auto writer_unchecked = [&out_start](auto item) { *out_start++ = item; };
-        size_t write_count = 0;
 
 #define XLANG_CONVERT_ONE(R, W)                                                                    \
     do                                                                                             \
@@ -484,12 +496,11 @@ public:
         if (is_passthrough<SrcFilter, DestFilter>(b))                                              \
         {                                                                                          \
             W(b);                                                                                  \
-            write_count++;                                                                         \
         }                                                                                          \
         else                                                                                       \
         {                                                                                          \
             auto cp = src_filter.read(b, R);                                                       \
-            write_count += dst_filter.write_valid(cp, W);                                          \
+            dst_filter.write_valid(cp, W);                                                         \
         }                                                                                          \
     } while (0)
 
@@ -503,6 +514,7 @@ public:
                 std::min(in_len / SrcFilter::max_cv_len, out_len / DestFilter::max_cv_len);
             auto batchlen = safelen / 4;
             if (batchlen == 0) break;
+            int i = 0;
 
             for (int i = 0; i < batchlen; i++)
             {
@@ -519,15 +531,14 @@ public:
             if (is_passthrough<SrcFilter, DestFilter>(b))
             {
                 writer_checked(b);
-                write_count++;
             }
             else
             {
                 auto cp = src_filter.read(b, reader_checked);
-                write_count += dst_filter.write_valid(cp, writer_checked);
+                dst_filter.write_valid(cp, writer_checked);
             }
         }
-        return write_count;
+        return out_start - out_start_org;
     }
 };
 
