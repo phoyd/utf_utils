@@ -1,6 +1,6 @@
 ## This fork 
 
-Adds very fast converter (phoyd.net) to the test.
+Adds very fast converter (phoyd.h) to the test.
 
 ## Overview
 
