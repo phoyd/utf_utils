@@ -1,10 +1,10 @@
 #pragma once
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <stdexcept>
-#include <cassert>
 
 namespace xlang::impl::code_converter
 {
@@ -40,9 +40,9 @@ namespace xlang::impl::code_converter
 #define GSL_ASSUME(cond) static_cast<void>((cond) ? 0 : 0)
 #endif
 //
-// GSL_ASSUME() is not a compiler hint. Instead it kills all code paths where the assumption would not hold,
-// making the code undefined if the assumption were wrong.
-// We turn ASSUME in to ASSERT for Debug build to check our assumptions at runtime.
+// GSL_ASSUME() is not a compiler hint. Instead it kills all code paths where the assumption would
+// not hold, making the code undefined if the assumption were wrong. We turn ASSUME in to ASSERT for
+// Debug build to check our assumptions at runtime.
 //
 #ifdef _DEBUG
 #define XLANG_ASSUME(cond) assert(cond)
@@ -97,7 +97,7 @@ bool constexpr is_passthrough(typename SrcFilter::cvt v)
 //
 // Codepoints in the surrogate area or after U++10FFFF are invalid.
 //
-//constexpr bool is_invalid_cp(uint32_t u)
+// constexpr bool is_invalid_cp(uint32_t u)
 //{
 //    return ((u >= 0xd800) && (u <= 0xdfff)) || (u > 0x10ffff);
 //}
@@ -118,7 +118,10 @@ constexpr bool is_low_surrogate(uint32_t u) { return ((u >= 0xdc00) && (u <= 0xd
 //
 constexpr uint32_t if_valid(uint32_t u)
 {
-    if (is_valid_cp(u)) return u; else invalid();
+    if (is_valid_cp(u))
+        return u;
+    else
+        invalid();
 }
 
 //
@@ -137,7 +140,7 @@ public:
     // Read as single code point from input 'in'. 'b' is a lookahead,
     // so we don't need to read anything.
     template <class In>
-    static uint32_t XLANG_FORCE_INLINE read(uint32_t b, In&& in)
+    static uint32_t XLANG_FORCE_INLINE read(uint32_t b, In&&)
     {
         return if_valid(b);
     }
@@ -204,7 +207,7 @@ public:
         }
         else
         {
-            XLANG_ASSUME(c<=0x10ffff); // because of is_valid_cp();
+            XLANG_ASSUME(c <= 0x10ffff); // because of is_valid_cp();
             c -= 0x10000;
             uint16_t h = narrow_cast<uint16_t>(0xd800 + (c >> 10));
             if (!is_high_surrogate(h)) { invalid(); }
@@ -292,7 +295,8 @@ public:
             // this sequence must return a code point from
             // the range above. Smaller code points are an overlong encoding
             // error.
-            if (!fail && (cp >= 0x80)) return cp;
+            // if (!fail && (cp >= 0x80)) return cp;
+            if ((fail | (cp<0x80))==0) return cp;
         }
         else if (b <= 0xef) // 0x800..0xffff
         {
@@ -325,7 +329,7 @@ public:
     {
         return write_valid(if_valid(cp), out);
     }
-    // for the magic numbers see 'read'
+
     template <class Out>
     static int XLANG_FORCE_INLINE write_valid(uint32_t cp, Out&& out)
     {
@@ -365,15 +369,42 @@ public:
 
 // Specializations for utf16
 template <>
-bool constexpr is_passthrough<utf16_filter,utf32_filter>(utf16_filter::cvt v)
+bool constexpr is_passthrough<utf16_filter, utf32_filter>(utf16_filter::cvt v)
 {
     return v < 0xd800; // pre surrogate is safe
 }
 template <>
-bool constexpr is_passthrough<utf32_filter,utf16_filter>(utf32_filter::cvt v)
+bool constexpr is_passthrough<utf32_filter, utf16_filter>(utf32_filter::cvt v)
 {
     return v < 0xd800; // pre surrogate is safe
 }
+
+//
+// We can use SrcFilter and DestFilter as they are or join them in
+// a 'transformer' which can be specialized on its type parameters, for
+// example to implement an optimized conversion pair.
+//
+template <class SrcFilter, class DestFilter>
+struct transformer
+{
+    SrcFilter&& src;
+    DestFilter&& dst;
+
+    template <class R, class W>
+    size_t XLANG_FORCE_INLINE tranform_one(typename SrcFilter::cvt b, R&& reader, W&& writer)
+    {
+        if (is_passthrough<SrcFilter, DestFilter>(b))
+        {
+            writer(b);
+            return 1;
+        }
+        else
+        {
+            auto cp = src.read(b, reader);
+            return dst.write_valid(cp, writer);
+        }
+    }
+};
 
 // 'convert' tries to convert the *complete* range from 'in_start' to
 // 'in_end' and writes the result to the 'out_start' iterator, after
@@ -412,7 +443,7 @@ class output_size_counter_spec;
 
 // forward to a specialization on the iterator types.
 template <class In, class Out, class SrcFilter, class DestFilter>
-static converter_result convert(In in_start, In in_end, Out out_start, Out out_end,
+inline converter_result convert(In in_start, In in_end, Out out_start, Out out_end,
                                 SrcFilter&& src_filter, DestFilter&& dst_filter,
                                 size_t& result_size)
 {
@@ -431,7 +462,7 @@ static converter_result convert(In in_start, In in_end, Out out_start, Out out_e
 }
 // forward to a specialization on the iterator types.
 template <class In, class SrcFilter, class DestFilter>
-static converter_result output_size(In in_start, In in_end, SrcFilter&& src_filter,
+inline converter_result output_size(In in_start, In in_end, SrcFilter&& src_filter,
                                     DestFilter&& dst_filter, size_t& result_size)
 {
     try
@@ -447,6 +478,7 @@ static converter_result output_size(In in_start, In in_end, SrcFilter&& src_filt
         return r;
     }
 }
+
 
 //
 //          Specialized Converter
@@ -464,7 +496,9 @@ public:
     static size_t convert(In in_start, In in_end, Out out_start, Out out_end,
                           SrcFilter&& src_filter, DestFilter&& dst_filter)
     {
-        // the reader closure reads from the input iterator
+        transformer<SrcFilter, DestFilter> trans{std::forward<SrcFilter>(src_filter),
+                                                 std::forward<DestFilter>(dst_filter)};
+
         auto reader_checked = [&in_start, in_end]() {
             if (GSL_LIKELY(in_start != in_end)) { return *in_start++; }
             else
@@ -484,23 +518,10 @@ public:
         size_t write_count = 0;
 
         while (in_start != in_end)
-        {
-            auto b = reader_unchecked();
-            if (is_passthrough<SrcFilter, DestFilter>(b))
-            {
-                writer_checked(b);
-                write_count++;
-            }
-            else
-            {
-                auto cp = src_filter.read(b, reader_checked);
-                write_count += dst_filter.write_valid(cp, writer_checked);
-            }
-        }
+        { write_count += trans.tranform_one(reader_unchecked(), reader_checked, writer_checked); }
         return write_count;
     }
 };
-
 //
 // Specialization: In and Out are random access iterators.
 //
@@ -512,8 +533,10 @@ public:
     static size_t convert(In in_start, In in_end, Out out_start, Out out_end,
                           SrcFilter&& src_filter, DestFilter&& dst_filter)
     {
-        __asm__ volatile ("// XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-        auto out_start_org=out_start; // (out-start-out_start_org) => number of values written
+        transformer<SrcFilter, DestFilter> trans{std::forward<SrcFilter>(src_filter),
+                                                 std::forward<DestFilter>(dst_filter)};
+
+        auto out_start_org = out_start; // (out-start-out_start_org) => number of values written
         // the reader closure reads from the input iterator
         auto reader_checked = [&in_start, in_end]() {
             if (GSL_LIKELY(in_start != in_end)) { return *in_start++; }
@@ -533,22 +556,6 @@ public:
         };
         auto writer_unchecked = [&out_start](auto item) { *out_start++ = item; };
 
-#define XLANG_CONVERT_ONE(R, W)                                                                    \
-    do                                                                                             \
-    {                                                                                              \
-        auto b = reader_unchecked(); /* always safe */                                             \
-        if (is_passthrough<SrcFilter, DestFilter>(b))                                              \
-        {                                                                                          \
-            W(b);                                                                                  \
-        }                                                                                          \
-        else                                                                                       \
-        {                                                                                          \
-            auto cp = src_filter.read(b, R);                                                       \
-            dst_filter.write_valid(cp, W);                                                         \
-        }                                                                                          \
-    } while (0)
-
-        //
         while (in_start != in_end)
         {
             auto in_len = in_end - in_start;
@@ -558,34 +565,20 @@ public:
                 std::min(in_len / SrcFilter::max_cv_len, out_len / DestFilter::max_cv_len);
             auto batchlen = safelen / 4;
             if (batchlen == 0) break;
-            int i = 0;
-
-            for (int i = 0; i < batchlen; i++)
+            for (size_t i = 0; i < batchlen; i++)
             {
-                XLANG_CONVERT_ONE(reader_unchecked, writer_unchecked);
-                XLANG_CONVERT_ONE(reader_unchecked, writer_unchecked);
-                XLANG_CONVERT_ONE(reader_unchecked, writer_unchecked);
-                XLANG_CONVERT_ONE(reader_unchecked, writer_unchecked);
+                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
             }
         }
 
         while (in_start != in_end)
-        {
-            auto b = reader_unchecked();
-            if (is_passthrough<SrcFilter, DestFilter>(b))
-            {
-                writer_checked(b);
-            }
-            else
-            {
-                auto cp = src_filter.read(b, reader_checked);
-                dst_filter.write_valid(cp, writer_checked);
-            }
-        }
+        { trans.tranform_one(reader_unchecked(), reader_checked, writer_checked); }
         return out_start - out_start_org;
     }
 };
-
 //
 // This is the default template and the general case the
 // output_size calculator.
