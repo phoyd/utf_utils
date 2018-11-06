@@ -30,16 +30,7 @@ include_directories(test)
 add_executable(utf_utils_test ${Sources})
 
 set(CMAKE_VERBOSE_MAKEFILE 1)
-
-if(CXX_COMPILER STREQUAL clang++)
-    set(CMAKE_C_COMPILER   clang)
-    set(CMAKE_CXX_COMPILER clang++)
-else()
-    set(CMAKE_C_COMPILER   gcc)
-    set(CMAKE_CXX_COMPILER g++)
-endif()
-
-if(CMAKE_CXX_COMPILER STREQUAL clang++)
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
     set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic -Wextra")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -pedantic -Wextra -Wno-unused-parameter")
@@ -47,7 +38,7 @@ if(CMAKE_CXX_COMPILER STREQUAL clang++)
     set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic -Wextra")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
 
-elseif(CMAKE_CXX_COMPILER STREQUAL g++)
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
     set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic")
     set(CMAKE_CXX_FLAGS_DEBUG "-g  -Wall -pedantic -Wextra")
