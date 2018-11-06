@@ -85,16 +85,6 @@ constexpr R narrow_cast(const A& a)
 }
 
 //
-// encodings with a common ASCII Plane might copy code values
-// without conversion. Specialize for EBCDIC, UTF-16
-//
-template <class SrcFilter, class DestFilter>
-bool constexpr is_passthrough(typename SrcFilter::cvt v)
-{
-    return v <= 0x7f; // ASCII plane
-}
-
-//
 // Codepoints in the surrogate area or after U++10FFFF are invalid.
 //
 // constexpr bool is_invalid_cp(uint32_t u)
@@ -111,6 +101,7 @@ constexpr bool is_valid_cp(uint32_t u)
 //
 constexpr bool is_high_surrogate(uint32_t u) { return ((u >= 0xd800) && (u <= 0xdbff)); }
 constexpr bool is_low_surrogate(uint32_t u) { return ((u >= 0xdc00) && (u <= 0xdfff)); }
+constexpr bool is_surrogate(uint32_t u) { return ((u >= 0xd800) && (u <= 0xdfff)); }
 
 //
 // return codepoint, but only if it is valid, otherwise assume malformed data
@@ -197,6 +188,19 @@ public:
     }
 
     template <class Out>
+    static int XLANG_FORCE_INLINE write_valid_ext(uint32_t c, Out&& out)
+    {
+        XLANG_ASSUME(c <= 0x10ffff); // because of is_valid_cp();
+        c -= 0x10000;
+        uint16_t h = narrow_cast<uint16_t>(0xd800 + (c >> 10));
+        if (!is_high_surrogate(h)) { invalid(); }
+        uint16_t l = 0xdc00 + (c & 0x3ffu);
+        if (!is_low_surrogate(l)) { invalid(); }
+        out(h);
+        out(l);
+        return 2;
+    }
+    template <class Out>
     static int XLANG_FORCE_INLINE write_valid(uint32_t c, Out&& out)
     {
         XLANG_ASSUME(is_valid_cp(c));
@@ -207,15 +211,7 @@ public:
         }
         else
         {
-            XLANG_ASSUME(c <= 0x10ffff); // because of is_valid_cp();
-            c -= 0x10000;
-            uint16_t h = narrow_cast<uint16_t>(0xd800 + (c >> 10));
-            if (!is_high_surrogate(h)) { invalid(); }
-            uint16_t l = 0xdc00 + (c & 0x3ffu);
-            if (!is_low_surrogate(l)) { invalid(); }
-            out(h);
-            out(l);
-            return 2;
+            return write_valid_ext(c, std::forward<Out>(out));
         }
     }
 };
@@ -381,17 +377,35 @@ public:
     }
 };
 
-// Specializations for utf16
-template <>
-bool constexpr is_passthrough<utf16_filter, utf32_filter>(utf16_filter::cvt v)
+//
+// encodings with a common ASCII Plane might copy code values
+// without conversion. Specialize for EBCDIC, UTF-16
+//
+
+template<class S,class D>
+struct conv_pair
 {
-    return v < 0xd800; // pre surrogate is safe
-}
-template <>
-bool constexpr is_passthrough<utf32_filter, utf16_filter>(utf32_filter::cvt v)
+    static bool constexpr is_passthrough(typename S::cvt v)
+    {
+        return v <= 0x7f; // ASCII plane
+    }
+};
+template<>
+struct conv_pair<utf16_filter, utf32_filter>
 {
-    return v < 0xd800; // pre surrogate is safe
-}
+    static bool constexpr is_passthrough(typename utf16_filter::cvt v)
+    {
+        return (v <= 0xd7ff) || (v>=0xdfff); // ASCII plane
+    }
+};
+template<>
+struct conv_pair<utf32_filter, utf16_filter>
+{
+    static bool constexpr is_passthrough(typename utf32_filter::cvt v)
+    {
+        return (v <= 0xd7ff) || (v>=0xdfff); // ASCII plane
+    }
+};
 
 //
 // We can use SrcFilter and DestFilter as they are or join them in
@@ -407,7 +421,7 @@ struct transformer
     template <class R, class W>
     size_t XLANG_FORCE_INLINE tranform_one(typename SrcFilter::cvt b, R&& reader, W&& writer)
     {
-        if (is_passthrough<SrcFilter, DestFilter>(b))
+        if (conv_pair<SrcFilter,DestFilter>::is_passthrough(b))
         {
             writer(b);
             return 1;
@@ -418,6 +432,28 @@ struct transformer
             return dst.write_valid(cp, writer);
         }
     }
+};
+
+template <>
+struct transformer<utf32_filter, utf16_filter>
+{
+    utf32_filter&& src;
+    utf16_filter&& dst;
+
+    template <class R, class W>
+    size_t XLANG_FORCE_INLINE tranform_one(utf32_filter::cvt b, R&& reader, W&& writer)
+    {
+        if (b<0x10000)
+        {
+            if (is_surrogate(b))
+            {
+                invalid();
+            }
+            writer(b);
+            return 1;
+       }
+       return dst.write_valid_ext(b, std::forward<W>(writer));
+}
 };
 
 // 'convert' tries to convert the *complete* range from 'in_start' to
@@ -594,7 +630,7 @@ public:
     }
 };
 //
-// This is the default template and the general case the
+// This is the general case for the
 // output_size calculator.
 // In can move forward, compare for *(in-)equality* only,
 template <class In, class SrcFilter, class DestFilter, class InCat>
