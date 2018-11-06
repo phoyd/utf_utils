@@ -291,23 +291,31 @@ public:
             uint32_t cp = 0;
             uint8_t b1 = in();
             // see "Byte Sequence in Binary"
+            // Looks like branchfree conversion is slower. Needs more testing.
+#define XLANG_CONV_BRANCHFREE 0
+
+#if XLANG_CONV_BRANCHFREE
             auto fail = (store_ck<0xc0, 6, 5>(cp, b) | store_ck<0x80, 0, 6>(cp, b1));
-            // this sequence must return a code point from
-            // the range above. Smaller code points are an overlong encoding
-            // error.
-            // if (!fail && (cp >= 0x80)) return cp;
-            if ((fail | (cp<0x80))==0) return cp;
+            if (!(fail | (cp<0x80))) return cp;
+#else
+            auto fail = (store_ck<0xc0, 6, 5>(cp, b) || store_ck<0x80, 0, 6>(cp, b1));
+            if (!fail && (cp >= 0x80)) return cp;
+#endif
         }
         else if (b <= 0xef) // 0x800..0xffff
         {
             uint32_t cp = 0;
             uint8_t b1 = in();
             uint8_t b2 = in();
-            // attn: undefine order of evaulation with |
+#if XLANG_CONV_BRANCHFREE
             auto fail = (store_ck<0xe0, 12, 4>(cp, b) | store_ck<0x80, 6, 6>(cp, b1) |
                          store_ck<0x80, 0, 6>(cp, b2));
-            // check if cp is in the surrogate area
+            if (!(fail | (cp < 0x800) | !is_valid_cp(cp))) return cp;
+#else
+            auto fail = (store_ck<0xe0, 12, 4>(cp, b) || store_ck<0x80, 6, 6>(cp, b1) ||
+                         store_ck<0x80, 0, 6>(cp, b2));
             if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
+#endif
         }
         else if (b <= 0xf7) // 0x10000-0x10ffff
         {
@@ -315,9 +323,15 @@ public:
             uint8_t b1 = in();
             uint8_t b2 = in();
             uint8_t b3 = in();
+#if XLANG_CONV_BRANCHFREE
             auto fail = (store_ck<0xf0, 18, 3>(cp, b) | store_ck<0x80, 12, 6>(cp, b1) |
                          store_ck<0x80, 6, 6>(cp, b2) | store_ck<0x80, 0, 6>(cp, b3));
+            if (!(fail | (cp < 0x10000) | (cp > 0x10ffff))) return cp;
+#else
+            auto fail = (store_ck<0xf0, 18, 3>(cp, b) || store_ck<0x80, 12, 6>(cp, b1) ||
+                         store_ck<0x80, 6, 6>(cp, b2) || store_ck<0x80, 0, 6>(cp, b3));
             if (!fail && (cp >= 0x10000) && (cp <= 0x10ffff)) return cp;
+#endif
         }
         invalid();
     }
