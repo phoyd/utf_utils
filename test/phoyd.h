@@ -596,6 +596,19 @@ public:
             if (batchlen == 0) break;
             for (size_t i = 0; i < batchlen; i++)
             {
+                if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
+                {
+                    auto v=*(uint64_t*)&(*in_start);
+                    if ((v & 0x80808080) == 0) // all ascii
+                    {
+                        writer_unchecked(in_start[0]);
+                        writer_unchecked(in_start[1]);
+                        writer_unchecked(in_start[2]);
+                        writer_unchecked(in_start[3]);
+                        in_start+=4;
+                        continue;
+                    }
+                }
                 trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
                 trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
                 trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
