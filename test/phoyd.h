@@ -87,6 +87,34 @@ constexpr R narrow_cast(const A& a)
 }
 
 //
+// bit helper
+//
+// create a mask of Count bits.
+template<unsigned Count>
+auto constexpr mask()
+{
+ return ((1 << Count) - 1);
+}
+//
+// deposit 'Count' bits into return value
+//
+template<unsigned Start, unsigned Count, class T>
+auto constexpr deposit(T in)
+{
+    constexpr auto m = mask<Count>();
+    return (in & m)<<Start;
+}
+//
+// extract 'Count' bits
+//
+template<unsigned Start, unsigned Count, class T>
+auto constexpr extract(T in)
+{
+    constexpr auto m = mask<Count>();
+    return (in>>Start)&m;
+}
+
+//
 // Codepoints in the surrogate area or after U++10FFFF are invalid.
 //
 // constexpr bool is_invalid_cp(char32_t u)
@@ -234,13 +262,11 @@ private:
     // Helper function. Read 'Count' bits starting from 'Start' in cp
     // and put 'Mark' over the octet result.
     template <char8_t Mark, unsigned Start, unsigned Count>
-    static constexpr char8_t fetch(char32_t cp)
+    static constexpr char8_t fetch(const char32_t cp)
     {
         static_assert(Count < 8, "invalid bitcount");
         static_assert(Count + Start < 32, "invalid bitstart");
-        constexpr auto mask = (1u << Count) - 1u;
-        auto val=(cp >> Start) & mask;
-        return (Mark | val);
+        return narrow_cast<char8_t>(Mark | extract<Start,Count>(cp));
     }
     // This writes 'Count' bits from 'b' to 'cp' starting at 'Start'
     // Returns a check value that is 0 if 'b' without the 'Count' bits
@@ -251,9 +277,10 @@ private:
     {
         static_assert(Count < 8, "invalid bitcount");
         static_assert(Count + Start < 32, "invalid bitstart");
-        constexpr auto mask = ((1u << Count) - 1u);
-        cp |= (b & mask) << Start;
-        return ((b & ~mask) ^ Mark); // return zero if valid
+        cp |= deposit<Start,Count>(b);
+        //constexpr auto m = ((1u << Count) - 1u);
+        constexpr auto m=mask<Count>();
+        return (b & ~m ) ^ Mark;
     }
 public:
     // Read up to 4 input values as UTF-8 and produce a UTF-32 code point
@@ -407,6 +434,7 @@ struct transformer
         }
     }
 };
+
 // 'convert' tries to convert the *complete* range from 'in_start' to
 // 'in_end' and writes the result to the 'out_start' iterator, after
 // processing the data with 'src_filter' and 'dst_filter'.
