@@ -1,6 +1,6 @@
-## This fork 
+## This fork..
 
-Adds very [fast](https://github.com/phoyd/utf_utils/wiki/Results) converter (phoyd.h) to the test.
+adds a very [fast](https://github.com/phoyd/utf_utils/wiki/Results) converter (phoyd.h) to the test.
 
 ## Overview
 
