@@ -6,7 +6,7 @@
 
 using namespace std;
 using namespace uu;
-
+extern bool FilterTest(const char *testname);
 using TestFn16 = ptrdiff_t (*)(string const&, size_t, u16string&);
 
 //--------------
@@ -417,82 +417,41 @@ TestAllConversions16(string const& fname, bool isFile, size_t repShift, bool tbl
     u16answer.resize(u8src.size(), 0);
     u16answer.resize((size_t) Convert16_Iconv(u8src, 1, u16answer));
 
-#if COMPARE_ALL
+#define RUNTEST(F,N)\
+    if (FilterTest(N)) { tdiff = TestOneConversion16(&F, u8src, reps, u16answer, N);\
+    times.push_back(tdiff);\
+    algos.emplace_back(N); }
     //- Run the individual tests.
     //
-    tdiff = TestOneConversion16(&Convert16_Iconv, u8src, reps, u16answer, "iconv");
-    times.push_back(tdiff);
-    algos.emplace_back("iconv");
-
-    tdiff = TestOneConversion16(&Convert16_Llvm, u8src, reps, u16answer, "llvm");
-    times.push_back(tdiff);
-    algos.emplace_back("llvm");
-
+    RUNTEST(Convert16_Iconv,"iconv");
+    RUNTEST(Convert16_Llvm,"llvm");
 #ifdef KEWB_COMPILER_MSVC
-    tdiff = TestOneConversion16(&Convert16_MS, u8src, reps, u16answer, "win32-mbtowc");
-    times.push_back(tdiff);
-    algos.emplace_back("win32-mbtowc");
+    RUNTEST(Convert16_MS,"win32-mbtowc");
 #endif
-
-    tdiff = TestOneConversion16(&Convert16_Codecvt, u8src, reps, u16answer, "std::codecvt");
-    times.push_back(tdiff);
-    algos.emplace_back("std::codecvt");
-
-    tdiff = TestOneConversion16(&Convert16_BoostText, u8src, reps, u16answer, "Boost.Text");
-    times.push_back(tdiff);
-    algos.emplace_back("Boost.Text");
- 
-    tdiff = TestOneConversion16(&Convert16_Hoehrmann, u8src, reps, u16answer, "hoehrmann");
-    times.push_back(tdiff);
-    algos.emplace_back("Hoehrmann");
- #endif
-    tdiff = TestOneConversion16(&Convert16_Phoyd, u8src, reps, u16answer, "phoyd");
-    times.push_back(tdiff);
-    algos.emplace_back("phoyd");
+    RUNTEST(Convert16_Codecvt,"std::codecvt");
+    RUNTEST(Convert16_BoostText,"Boost::Text");
+    RUNTEST(Convert16_Hoehrmann,"hoehrmann");
+    RUNTEST(Convert16_Phoyd,"phoyd");
 
     if (tblCmp)
     {
-        tdiff = TestOneConversion16(&Convert16_KewbBasicSmTab, u8src, reps, u16answer, "kewb-basic-small-table");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-basic-small-table");
-
-        tdiff = TestOneConversion16(&Convert16_KewbBasicBgTab, u8src, reps, u16answer, "kewb-basic-big-table");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-basic-big-table");
-
-        tdiff = TestOneConversion16(&Convert16_KewbFastSmTab, u8src, reps, u16answer, "kewb-fast-small-table");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-fast-small-table");
-
-        tdiff = TestOneConversion16(&Convert16_KewbFastBgTab, u8src, reps, u16answer, "kewb-fast-big-table");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-fast-big-table");
+        RUNTEST(Convert16_KewbBasicSmTab,"kewb-basic-small-table");
+        RUNTEST(Convert16_KewbBasicBgTab, "kewb-basic-big-table");
+        RUNTEST(Convert16_KewbFastSmTab, "kewb-fast-small-table");
+        RUNTEST(Convert16_KewbFastBgTab, "kewb-fast-big-table");
 #ifndef NO_SSE
-        tdiff = TestOneConversion16(&Convert16_KewbSseSmTab, u8src, reps, u16answer, "kewb-sse-small-table");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-sse-small-table");
-
-        tdiff = TestOneConversion16(&Convert16_KewbSseBgTab, u8src, reps, u16answer, "kewb-sse-big-table");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-sse-big-table");
+        RUNTEST(Convert16_KewbSseSmTab, "kewb-sse-small-table");
+        RUNTEST(Convert16_KewbSseBgTab, "kewb-sse-big-table");
 #endif
     }
     else
     {
-        tdiff = TestOneConversion16(&Convert16_KewbBasic, u8src, reps, u16answer, "kewb-basic");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-basic");
-
-        tdiff = TestOneConversion16(&Convert16_KewbFast, u8src, reps, u16answer, "kewb-fast");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-fast");
+        RUNTEST(Convert16_KewbBasic, "kewb-basic");
+        RUNTEST(Convert16_KewbFast,"kewb-fast");
 #ifndef NO_SSE
-        tdiff = TestOneConversion16(&Convert16_KewbSse, u8src, reps, u16answer, "kewb-sse");
-        times.push_back(tdiff);
-        algos.emplace_back("kewb-sse");
+        RUNTEST(Convert16_KewbSse, "kewb-sse");
 #endif
     }
-
     return tuple<name_list, time_list>(algos, times);
 }
 
