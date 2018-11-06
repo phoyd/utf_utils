@@ -361,8 +361,9 @@ TestOneConversion32
 
     dst.resize((dstLen >= 0) ? (size_t) dstLen : 0u);
 
-    printf("UTF-8 to UTF-32 took %4u msec (%zu/%zu units/points) (%zu reps) (%s)\n",
-            (uint32_t) tmdiff, src.size(), dst.size(), reps, ((name != nullptr) ? name : ""));
+    double mubs=1.0*src.size()*reps*(1000.0/tmdiff)/1e6;
+    printf("UTF-8 to UTF-32 took %4u msec (%zu/%zu units/points, %f munits/sec) (%zu reps) (%s)\n",
+            (uint32_t) tmdiff, src.size(), dst.size(), mubs, reps, ((name != nullptr) ? name : ""));
 
     if (dst != answer)
     {
@@ -474,22 +475,27 @@ TestFiles32(string const& dataDir, size_t repShift, file_list const& files, bool
         all_times.emplace_back(std::move(times));
     }
 
-    printf("\n> tabular summary:\n> file\\algo");
+    printf("\n> tabular summary:\n\n| file\\algo");
     for (auto const& algo : algos)
     {
-        printf(", %s", algo.c_str());
+        printf("| %s ", algo.c_str());
     }
-    printf("\n");
+    printf("|\n");
+    for (auto const& algo : algos)
+    {
+        printf("| --- ", algo.c_str());
+    }
+    printf("| --- |\n");
 
     for (size_t i = 0;  i < files.size();  ++i)
     {
-        printf("> %s", files[i].c_str());
+        printf("| %s ", files[i].c_str());
 
         for (size_t j = 0;  j < all_times[i].size();  ++j)
         {
-            printf(", %u", (uint32_t) all_times[i][j]);
+            printf("| %u ", (uint32_t) all_times[i][j]);
         }
-        printf("\n");
+        printf("|\n");
     }
     printf("\n");
     fflush(stdout);
