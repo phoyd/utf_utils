@@ -459,23 +459,47 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char3
     char32_t*   pDstOrig = pDst;
     char32_t    cdpt;
 
+#define LOOP \
+        do { if (*pSrc < 0x80)\
+        {\
+            *pDst++ = *pSrc++;\
+        }\
+        else\
+        {\
+            if (AdvanceWithBigTable(pSrc, pSrcEnd, cdpt) != ERR)\
+            {\
+                *pDst++ = cdpt;\
+            }\
+            else\
+            {\
+                return -1;\
+            }\
+        } } while(0)
+#if 0 // optionally unroll the kewb-fast loop
+    for(;;)
+    {
+        auto in_len = pSrcEnd-pSrc;
+        //auto out_len = out_end - out_start;
+        auto safelen =in_len/4;
+        if (safelen<4) break;
+        int i=0;
+        // unroll
+        for (;(i+3)<safelen;i+=4)
+        {
+            LOOP;
+            LOOP;
+            LOOP;
+            LOOP;
+        }
+        for (;i<safelen;i++)
+        {
+            LOOP;
+        }
+    }
+#endif
     while (pSrc < pSrcEnd)
     {
-        if (*pSrc < 0x80)
-        {
-            *pDst++ = *pSrc++;
-        }
-        else
-        {
-            if (AdvanceWithBigTable(pSrc, pSrcEnd, cdpt) != ERR)
-            {
-                *pDst++ = cdpt;
-            }
-            else
-            {
-                return -1;
-            }
-        }
+        LOOP;
     }
 
     return pDst - pDstOrig;
