@@ -77,6 +77,41 @@ enum class converter_result
 [[noreturn]] inline void buffer_error() { throw converter_result::OUTPUT_TOO_SMALL; }
 
 //
+// Make an single, checked forward only "iterator" that is an alias to 'start' and checks against 'end'. std::iterator is deprecated, so
+// just enough iterator here to be useful in the decoder and encoder routines.
+template<class T, auto Err>
+struct bounded
+{
+    T &start;
+    T end;
+    typedef typename std::iterator_traits<T>::value_type value_type;
+    typedef typename std::iterator_traits<T>::reference reference;
+    bounded(T &start, const T& end): start(start),end(end) {}
+    reference operator *() { return *start; }
+    T operator ++ (int)
+    {
+        if (GSL_LIKELY(start!=end))
+        {
+        auto r=start;
+        start++;
+        return r;
+        }
+        Err();
+    }
+};
+template<class T>
+struct dev_null
+{
+    T dontcare;
+    const T& operator *() const { return *dontcare; }
+    T& operator *() { return dontcare; }
+    dev_null& operator ++ (int)
+    {
+        return *this;
+    }
+};
+
+//
 // [CCG]: Make narrowing explicit
 // must be correct at call size
 //
@@ -178,7 +213,7 @@ public:
     static int XLANG_FORCE_INLINE write_valid(char32_t c, Out&& out)
     {
         XLANG_ASSUME(is_valid_cp(c));
-        out(c);
+        *out++=c;
         return 1;
     }
 };
@@ -201,7 +236,7 @@ public:
     {
         if (is_high_surrogate(h))
         {
-            char16_t l = in();
+            char16_t l = *in++;
             if (!is_low_surrogate(l)) { invalid(); }
             char32_t cp = ((h - 0xd800u) << 10) + (l - 0xdc00u) + 0x10000u;
             return if_valid(cp);
@@ -226,11 +261,11 @@ public:
         // 0xfffff>>10 == 0x3ff, 0xd800+0x3ff == 0xdbff
         // therefore h is a valid high surrogate.
         char16_t h = narrow_cast<char16_t>(0xd800 + (c >> 10));
-        out(h);
+        *out++=h;
         // 0xdc00 + 0x3ff == 0xdfff
         // therefore l is a valid low surrogate
         char16_t l = 0xdc00 + (c & 0x3ffu);
-        out(l);
+        *out++=l;
         return 2;
     }
     template <class Out>
@@ -239,7 +274,7 @@ public:
         XLANG_ASSUME(is_valid_cp(c));
         if (c < 0x10000)
         {
-            out(c);
+            *out++=c;
             return 1;
         }
         else
@@ -310,15 +345,15 @@ public:
         else if (b <= 0xdf) // 0x80..0x7ff
         {
             char32_t cp = 0;
-            char8_t b1 = in();            
+            char8_t b1 = *in++;
             auto fail = (store_ck<0xc0, 6, 5>(cp, b) || store_ck<0x80, 0, 6>(cp, b1));
             if (!fail && (cp >= 0x80)) return cp;
         }
         else if (b <= 0xef) // 0x800..0xffff
         {
             char32_t cp = 0;
-            char8_t b1 = in();
-            char8_t b2 = in();
+            char8_t b1 = *in++;
+            char8_t b2 = *in++;
             auto fail = (store_ck<0xe0, 12, 4>(cp, b) || store_ck<0x80, 6, 6>(cp, b1) ||
                          store_ck<0x80, 0, 6>(cp, b2));
             if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
@@ -326,8 +361,8 @@ public:
         else if (b <= 0xf7) // 0x10000-0x10ffff
         {
             char32_t cp = 0;
-            auto fail = (store_ck<0xf0, 18, 3>(cp, b) || store_ck<0x80, 12, 6>(cp, in()) ||
-                         store_ck<0x80, 6, 6>(cp, in()) || store_ck<0x80, 0, 6>(cp, in()));
+            auto fail = (store_ck<0xf0, 18, 3>(cp, b) || store_ck<0x80, 12, 6>(cp, *in++) ||
+                         store_ck<0x80, 6, 6>(cp, *in++) || store_ck<0x80, 0, 6>(cp, *in++));
             if (!fail && (cp >= 0x10000) && (cp <= 0x10ffff)) return cp;
         }
         invalid();
@@ -347,28 +382,28 @@ public:
         XLANG_ASSUME(is_valid_cp(cp));
         if (cp <= 0x7f)
         {
-            out(narrow_cast<char8_t>(cp));
+            *out++=(narrow_cast<char8_t>(cp));
             return 1;
         }
         else if (cp <= 0x7ff)
         {
-            out(fetch<0xc0, 6, 5>(cp));
-            out(fetch<0x80, 0, 6>(cp));
+            *out++=(fetch<0xc0, 6, 5>(cp));
+            *out++=(fetch<0x80, 0, 6>(cp));
             return 2;
         }
         else if (cp <= 0xffff)
         {
-            out(fetch<0xe0, 12, 4>(cp));
-            out(fetch<0x80, 6, 6>(cp));
-            out(fetch<0x80, 0, 6>(cp));
+            *out++=(fetch<0xe0, 12, 4>(cp));
+            *out++=(fetch<0x80, 6, 6>(cp));
+            *out++=(fetch<0x80, 0, 6>(cp));
             return 3;
         }
         else if (cp <= 0x10FFFF)
         {
-            out(fetch<0xf0, 18, 3>(cp));
-            out(fetch<0x80, 12, 6>(cp));
-            out(fetch<0x80, 6, 6>(cp));
-            out(fetch<0x80, 0, 6>(cp));
+            *out++=(fetch<0xf0, 18, 3>(cp));
+            *out++=(fetch<0x80, 12, 6>(cp));
+            *out++=(fetch<0x80, 6, 6>(cp));
+            *out++=(fetch<0x80, 0, 6>(cp));
             return 4;
         }
         else
@@ -437,7 +472,7 @@ struct transformer
      // is directly inlined into read.
         if (conv_pair<SrcFilter,DestFilter>::is_passthrough(b))
         {
-            writer(b);
+            *writer++=(b);
             return 1;
         }
 #endif
@@ -539,26 +574,15 @@ public:
         transformer<SrcFilter, DestFilter> trans{std::forward<SrcFilter>(src_filter),
                                                  std::forward<DestFilter>(dst_filter)};
 
-        auto reader_checked = [&in_start, in_end]() {
-            if (GSL_LIKELY(in_start != in_end)) { return *in_start++; }
-            else
-            {
-                invalid();
-            }
-        };
-        auto reader_unchecked = [&in_start]() { return *in_start++; };
+        bounded<In,invalid> reader_checked{in_start,in_end};
+        bounded<Out,buffer_error> writer_checked{out_start,out_end};
 
-        auto writer_checked = [&out_start, out_end](auto item) {
-            if (GSL_LIKELY(out_start != out_end)) { *out_start++ = item; }
-            else
-            {
-                buffer_error();
-            }
-        };
         size_t write_count = 0;
 
         while (in_start != in_end)
-        { write_count += trans.tranform_one(reader_unchecked(), reader_checked, writer_checked); }
+        { //
+            write_count += trans.tranform_one(*in_start++, reader_checked, writer_checked);
+        }
         return write_count;
     }
 };
@@ -579,8 +603,6 @@ public:
         auto out_start_org = out_start; // (out-start-out_start_org) => number of values written
 
 
-        auto reader_unchecked = [&in_start]() { return *in_start++; };
-        auto writer_unchecked = [&out_start](auto item) { *out_start++ = item; };
 
         // optimization: find a safe range for unchecked access to in and out.
         for(;;)
@@ -594,36 +616,23 @@ public:
             // unroll
             for (;(i+3)<safelen;i+=4)
             {
-            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
-            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
-            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
-            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+                trans.tranform_one(*in_start++, in_start,out_start);
+                trans.tranform_one(*in_start++, in_start,out_start);
+                trans.tranform_one(*in_start++, in_start,out_start);
+                trans.tranform_one(*in_start++, in_start,out_start);
             }
             for (;i<safelen;i++)
             {
-            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+                trans.tranform_one(*in_start++, in_start,out_start);
             }
         }
-    // reading/writing rest unchecked
-        auto reader_checked = [&in_start, in_end]() {
-            if (GSL_LIKELY(in_start < in_end)) { return *in_start++; }
-            else
-            {
-                invalid();
-            }
-        };
 
-        auto writer_checked = [&out_start, out_end](auto item) {
-            if (GSL_LIKELY(out_start < out_end)) { *out_start++ = item; }
-            else
-            {
-                buffer_error();
-            }
-        };
+        bounded<In,invalid> reader_checked{in_start,in_end};
+        bounded<Out,buffer_error> writer_checked{out_start,out_end};
 
         while (in_start < in_end)
         { //
-            trans.tranform_one(reader_unchecked(), reader_checked, writer_checked);
+            trans.tranform_one(*in_start++, reader_checked, writer_checked);
         }
         return out_start - out_start_org;
 
@@ -641,23 +650,15 @@ public:
     static size_t output_size(In in_start, In in_end, SrcFilter&& src_filter,
                               DestFilter&& dst_filter)
     {
-        // the reader closure reads from the input iterator
-        auto reader_checked = [&in_start, &in_end]() {
-            if (GSL_LIKELY(in_start != in_end)) { return *in_start++; }
-            else
-            {
-                invalid();
-            }
-        };
-        auto reader_unchecked = [&in_start]() { return *in_start++; };
+        bounded<In,invalid> reader_checked{in_start,in_end};
 
-        auto nullput = [](...) {};
         size_t write_count = 0;
         while (in_start != in_end)
         {
-            auto b = reader_unchecked();
+            auto b = *in_start++;
             auto cp = src_filter.read(b, reader_checked);
-            write_count += dst_filter.write_valid(cp, nullput);
+            dev_null<typename DestFilter::cvt> null;
+            write_count += dst_filter.write_valid(cp, null);
         }
         return write_count;
     }
