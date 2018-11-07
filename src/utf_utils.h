@@ -107,21 +107,25 @@ class UtfUtils
     //
     static  ptrdiff_t   BasicConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
     static  ptrdiff_t   FastConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
+    static  ptrdiff_t   FastUnrolledConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
     static  ptrdiff_t   SseConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
 
     static  ptrdiff_t   BasicConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
     static  ptrdiff_t   FastConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
+    static  ptrdiff_t   FastUnrolledConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
     static  ptrdiff_t   SseConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
 
     //- Conversion to UTF-32/UTF-16 using pre-computed first code unit lookup table.
     //
     static  ptrdiff_t   BasicBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
     static  ptrdiff_t   FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
+    static  ptrdiff_t   FastUnrolledBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
     static  ptrdiff_t   SseBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
     static  ptrdiff_t   SseBigTableConvertX(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept;
 
     static  ptrdiff_t   BasicBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
     static  ptrdiff_t   FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
+    static  ptrdiff_t   FastUnrolledBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
     static  ptrdiff_t   SseBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept;
 
     //- Conversion to UTF-32/UTF-16 using small lookup table and masking operations on first code unit.
@@ -353,6 +357,11 @@ UtfUtils::FastConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDs
 {
     return FastBigTableConvert(pSrc, pSrcEnd, pDst);
 }
+KEWB_FORCE_INLINE ptrdiff_t
+UtfUtils::FastUnrolledConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept
+{
+    return FastUnrolledBigTableConvert(pSrc, pSrcEnd, pDst);
+}
 
 //--------------------------------------------------------------------------------------------------
 /// \brief  Converts a sequence of UTF-8 code units to a sequence of UTF-32 code points.
@@ -415,6 +424,11 @@ KEWB_FORCE_INLINE ptrdiff_t
 UtfUtils::FastConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept
 {
     return FastSmallTableConvert(pSrc, pSrcEnd, pDst);
+}
+KEWB_FORCE_INLINE ptrdiff_t
+UtfUtils::FastUnrolledConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept
+{
+    return FastUnrolledBigTableConvert(pSrc, pSrcEnd, pDst);
 }
 
 //--------------------------------------------------------------------------------------------------

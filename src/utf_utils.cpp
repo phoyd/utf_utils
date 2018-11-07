@@ -459,7 +459,33 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char3
     char32_t*   pDstOrig = pDst;
     char32_t    cdpt;
 
-#define LOOP \
+    while (pSrc < pSrcEnd)
+    {
+        if (*pSrc < 0x80)
+        {
+            *pDst++ = *pSrc++;
+        }
+        else
+        {
+            if (AdvanceWithBigTable(pSrc, pSrcEnd, cdpt) != ERR)
+            {
+                *pDst++ = cdpt;
+            }
+            else
+            {
+                return -1;
+            }
+        }
+    }
+    return pDst - pDstOrig;
+}
+KEWB_ALIGN_FN std::ptrdiff_t
+UtfUtils::FastUnrolledBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char32_t* pDst) noexcept
+{
+    char32_t*   pDstOrig = pDst;
+    char32_t    cdpt;
+
+#define BODY \
         do { if (*pSrc < 0x80)\
         {\
             *pDst++ = *pSrc++;\
@@ -475,7 +501,7 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char3
                 return -1;\
             }\
         } } while(0)
-#if 0 // optionally unroll the kewb-fast loop
+
     for(;;)
     {
         auto in_len = pSrcEnd-pSrc;
@@ -486,24 +512,24 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char3
         // unroll
         for (;(i+3)<safelen;i+=4)
         {
-            LOOP;
-            LOOP;
-            LOOP;
-            LOOP;
+            BODY;
+            BODY;
+            BODY;
+            BODY;
         }
         for (;i<safelen;i++)
         {
-            LOOP;
+            BODY;
         }
     }
-#endif
     while (pSrc < pSrcEnd)
     {
-        LOOP;
+        BODY;
     }
 
     return pDst - pDstOrig;
 }
+#undef BODY
 
 //--------------------------------------------------------------------------------------------------
 /// \brief  Converts a sequence of UTF-8 code units to a sequence of UTF-32 code points.
@@ -664,6 +690,37 @@ UtfUtils::FastBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char1
             }
         }
     }
+
+    return pDst - pDstOrig;
+}
+KEWB_ALIGN_FN std::ptrdiff_t
+UtfUtils::FastUnrolledBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEnd, char16_t* pDst) noexcept
+{
+    char16_t*   pDstOrig = pDst;
+    char32_t    cdpt;
+
+#define BODY \
+        do { if (*pSrc < 0x80)\
+        {\
+            *pDst++ = *pSrc++;\
+        }\
+        else\
+        {\
+            if (AdvanceWithBigTable(pSrc, pSrcEnd, cdpt) != ERR)\
+            {\
+                GetCodeUnits(cdpt, pDst);\
+            }\
+            else\
+            {\
+                return -1;\
+            }\
+        } } while(0)
+
+    while (pSrc < pSrcEnd)
+    {
+        BODY;
+    }
+
 
     return pDst - pDstOrig;
 }

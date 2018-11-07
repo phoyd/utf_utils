@@ -90,13 +90,10 @@ struct bounded
     reference operator *() { return *start; }
     T operator ++ (int)
     {
-        if (GSL_LIKELY(start!=end))
-        {
+        if (GSL_UNLIKELY(start==end)) Err();
         auto r=start;
         start++;
         return r;
-        }
-        Err();
     }
 };
 template<class T>
@@ -136,7 +133,7 @@ auto constexpr mask()
 template<unsigned Start, unsigned Count, class T>
 auto constexpr deposit(T in)
 {
-    constexpr auto m = mask<Count>();
+    constexpr T m = mask<Count>();
     return (in & m)<<Start;
 }
 //
@@ -312,16 +309,14 @@ private:
     {
         static_assert(Count < 8, "invalid bitcount");
         static_assert(Count + Start < 32, "invalid bitstart");
-        cp |= deposit<Start,Count>(b);
+        auto v=static_cast<char32_t>(deposit<Start,Count>(b));
+        cp = (cp | v);
         constexpr auto m=mask<Count>();
         return (b & ~m ) ^ Mark;
     }
 public:
     // Read up to 4 input values as UTF-8 and produce a UTF-32 code point
-    // in native byte order. NOTE: We are dealing with UTF-32 code points
-    // here, if we would want to support the full UCS encoding, we would
-    // need up to 6 input values here.
-    // As a quick reminder, this illustration from Rob Pike
+    // in native byte order.
     // (http://doc.cat-v.org/bell_labs/utf-8_history)
     //
     //    Bits  Hex Min  Hex Max  Byte Sequence in Binary
@@ -417,7 +412,6 @@ public:
 // encodings with a common ASCII Plane might copy code values
 // without conversion. Specialize for EBCDIC, UTF-16
 //
-
 template<class S,class D>
 struct conv_pair
 {
@@ -520,7 +514,7 @@ class output_size_counter_spec;
 template <class In, class Out, class SrcFilter, class DestFilter>
 inline converter_result convert(In in_start, In in_end, Out out_start, Out out_end,
                                 SrcFilter&& src_filter, DestFilter&& dst_filter,
-                                size_t& result_size)
+                                size_t& result_size) noexcept
 {
     try
     {
@@ -538,7 +532,7 @@ inline converter_result convert(In in_start, In in_end, Out out_start, Out out_e
 // forward to a specialization on the iterator types.
 template <class In, class SrcFilter, class DestFilter>
 inline converter_result output_size(In in_start, In in_end, SrcFilter&& src_filter,
-                                    DestFilter&& dst_filter, size_t& result_size)
+                                    DestFilter&& dst_filter, size_t& result_size) noexcept
 {
     try
     {
@@ -602,8 +596,6 @@ public:
 
         auto out_start_org = out_start; // (out-start-out_start_org) => number of values written
 
-
-
         // optimization: find a safe range for unchecked access to in and out.
         for(;;)
         {
@@ -612,7 +604,7 @@ public:
             auto safelen =
                 std::min(in_len / SrcFilter::max_cv_len, out_len / DestFilter::max_cv_len);
             if (safelen<4) break;
-            int i=0;
+            size_t i=0;
             // unroll
             for (;(i+3)<safelen;i+=4)
             {

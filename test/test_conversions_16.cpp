@@ -325,6 +325,21 @@ Convert16_KewbFast(string const& src, size_t reps, u16string& dst)
 
     return dstLen;
 }
+ptrdiff_t
+Convert16_KewbFastUnrolled(string const& src, size_t reps, u16string& dst)
+{
+    char8_t const*  pSrcBuf = (char8_t const*) &src[0]; //- Pointer to source buffer
+    char8_t const*  pSrcEnd = pSrcBuf + src.size();     //- Pointer to end of source buffer
+    char16_t*       pDstBuf = &dst[0];                  //- Pointer to destination buffer
+    ptrdiff_t       dstLen  = 0;
+
+    for (uint64_t i = 0;  i < reps;  ++i)
+    {
+        dstLen = UtfUtils::FastUnrolledConvert(pSrcBuf, pSrcEnd, pDstBuf);
+    }
+
+    return dstLen;
+}
 
 //--------------
 //
@@ -449,6 +464,7 @@ TestAllConversions16(string const& fname, bool isFile, size_t repShift, bool tbl
     {
         RUNTEST(Convert16_KewbBasic, "kewb-basic");
         RUNTEST(Convert16_KewbFast,"kewb-fast");
+        RUNTEST(Convert16_KewbFastUnrolled,"kewb-fast-unrolled");
 #ifndef NO_SSE
         RUNTEST(Convert16_KewbSse, "kewb-sse");
 #endif
@@ -485,7 +501,7 @@ TestFiles16(string const& dataDir, size_t repShift, file_list const& files, bool
     printf("|\n");
     for (auto const& algo : algos)
     {
-        printf("| --- ", algo.c_str());
+        printf("| --- ");
     }
     printf("| --- |\n");
 
