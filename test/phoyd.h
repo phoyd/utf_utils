@@ -304,6 +304,7 @@ public:
         // * no-returns are falling through 'invalid' at the end.
         if (b <= 0x7f) // 0x00..0x7f (Hex Min and Hex Max in the table above)
         {
+            GSL_ASSUME(b<=0x7f);
             return b; // always valid
         }
         else if (b <= 0xdf) // 0x80..0x7ff
@@ -421,16 +422,27 @@ struct transformer
     template <class R, class W>
     size_t XLANG_FORCE_INLINE tranform_one(typename SrcFilter::cvt b, R&& reader, W&& writer)
     {
+#if 1
+     // TODO: The whole passthrough thing shouldn't be neccesary, if the
+     // compiler would look into the read() and write(). For example,
+     // utf8_filter.read(b)  returns b immediately if b<=0x7f
+     // while utf16_filter.writer simply writes every cp < 0x7ff directly
+     // to the writer. So, the compiler should see this (because of inlining)
+     // and write b directly to the output.
+     // In fact, gcc-7 seems to do this and the code runs faster
+     // if this block is disabled. clang OTOH is a much weaker inliner
+     // and seems to forget things it should have learned from the inlined
+     // code paths.
+     // Solution could be giving a contibuation to write, so that write
+     // is directly inlined into read.
         if (conv_pair<SrcFilter,DestFilter>::is_passthrough(b))
         {
             writer(b);
             return 1;
         }
-        else
-        {
-            auto cp = src.read(b, reader);
-            return dst.write_valid(cp, writer);
-        }
+#endif
+        auto cp = src.read(b, reader);
+        return dst.write_valid(cp, writer);
     }
 };
 
@@ -565,23 +577,9 @@ public:
                                                  std::forward<DestFilter>(dst_filter)};
 
         auto out_start_org = out_start; // (out-start-out_start_org) => number of values written
-        // the reader closure reads from the input iterator
-        auto reader_checked = [&in_start, in_end]() {
-            if (GSL_LIKELY(in_start != in_end)) { return *in_start++; }
-            else
-            {
-                invalid();
-            }
-        };
-        auto reader_unchecked = [&in_start]() { return *in_start++; };
 
-        auto writer_checked = [&out_start, out_end](auto item) {
-            if (GSL_LIKELY(out_start != out_end)) { *out_start++ = item; }
-            else
-            {
-                buffer_error();
-            }
-        };
+
+        auto reader_unchecked = [&in_start]() { return *in_start++; };
         auto writer_unchecked = [&out_start](auto item) { *out_start++ = item; };
 
         // optimization: find a safe range for unchecked access to in and out.
@@ -606,8 +604,24 @@ public:
             trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
             }
         }
+    // reading/writing rest unchecked
+        auto reader_checked = [&in_start, in_end]() {
+            if (GSL_LIKELY(in_start < in_end)) { return *in_start++; }
+            else
+            {
+                invalid();
+            }
+        };
 
-        while (in_start != in_end)
+        auto writer_checked = [&out_start, out_end](auto item) {
+            if (GSL_LIKELY(out_start < out_end)) { *out_start++ = item; }
+            else
+            {
+                buffer_error();
+            }
+        };
+
+        while (in_start < in_end)
         { //
             trans.tranform_one(reader_unchecked(), reader_checked, writer_checked);
         }
