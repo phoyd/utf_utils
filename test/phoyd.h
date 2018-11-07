@@ -431,7 +431,7 @@ struct conv_pair<utf16_filter, utf32_filter>
 {
     static bool constexpr is_passthrough(typename utf16_filter::cvt v)
     {
-        return (v <= 0xd7ff) || (v>=0xdfff); // ASCII plane
+        return (v <= 0xd7ff);
     }
 };
 template<>
