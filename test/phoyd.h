@@ -584,45 +584,35 @@ public:
         };
         auto writer_unchecked = [&out_start](auto item) { *out_start++ = item; };
 
-        while (in_start != in_end)
+        // optimization: find a safe range for unchecked access to in and out.
+        for(;;)
         {
             auto in_len = in_end - in_start;
             auto out_len = out_end - out_start;
-
             auto safelen =
                 std::min(in_len / SrcFilter::max_cv_len, out_len / DestFilter::max_cv_len);
-            auto batchlen = safelen / 4;
-            if (batchlen == 0) break;
-            for (size_t i = 0; i < batchlen; i++)
+            if (safelen<4) break;
+            int i=0;
+            // unroll
+            for (;(i+3)<safelen;i+=4)
             {
-#if 0
-                // potential optimization:
-                // find a specialization with pointer iterators and process
-                // multiple values at once.
-                if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
-                {
-                    auto v=*(uint64_t*)&(*in_start);
-                    if ((v & 0x80808080)==0) // no high bit set=>all ASCII
-                    {
-                        writer_unchecked(in_start[0]);
-                        writer_unchecked(in_start[1]);
-                        writer_unchecked(in_start[2]);
-                        writer_unchecked(in_start[3]);
-                        in_start+=4;
-                        continue;
-                    }
-                }
-#endif
-                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
-                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
-                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
-                trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
+            }
+            for (;i<safelen;i++)
+            {
+            trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
             }
         }
 
         while (in_start != in_end)
-        { trans.tranform_one(reader_unchecked(), reader_checked, writer_checked); }
+        { //
+            trans.tranform_one(reader_unchecked(), reader_checked, writer_checked);
+        }
         return out_start - out_start_org;
+
     }
 };
 //
