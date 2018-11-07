@@ -278,7 +278,6 @@ private:
         static_assert(Count < 8, "invalid bitcount");
         static_assert(Count + Start < 32, "invalid bitstart");
         cp |= deposit<Start,Count>(b);
-        //constexpr auto m = ((1u << Count) - 1u);
         constexpr auto m=mask<Count>();
         return (b & ~m ) ^ Mark;
     }
@@ -310,7 +309,7 @@ public:
         else if (b <= 0xdf) // 0x80..0x7ff
         {
             char32_t cp = 0;
-            char8_t b1 = in();
+            char8_t b1 = in();            
             auto fail = (store_ck<0xc0, 6, 5>(cp, b) || store_ck<0x80, 0, 6>(cp, b1));
             if (!fail && (cp >= 0x80)) return cp;
         }
@@ -596,10 +595,14 @@ public:
             if (batchlen == 0) break;
             for (size_t i = 0; i < batchlen; i++)
             {
+#if 0
+                // potential optimization:
+                // find a specialization with pointer iterators and process
+                // multiple values at once.
                 if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
                 {
                     auto v=*(uint64_t*)&(*in_start);
-                    if ((v & 0x80808080) == 0) // all ascii
+                    if ((v & 0x80808080)==0) // no high bit set=>all ASCII
                     {
                         writer_unchecked(in_start[0]);
                         writer_unchecked(in_start[1]);
@@ -609,6 +612,7 @@ public:
                         continue;
                     }
                 }
+#endif
                 trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
                 trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
                 trans.tranform_one(reader_unchecked(), reader_unchecked, writer_unchecked);
