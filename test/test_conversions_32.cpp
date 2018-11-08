@@ -493,12 +493,14 @@ TestFiles32(string const& dataDir, size_t repShift, file_list const& files, bool
         all_times.emplace_back(std::move(times));
     }
 
-    printf("\n> tabular summary:\n\n| file\\algo");
+    std::vector<int64_t> sums(algos.size(),0);
+    printf("\n>\n>## Convert UTF8->UTF16\n>\n");
+    printf("\ntabular summary:\n\n>| file\\algo");
     for (auto const& algo : algos)
     {
         printf("| %s ", algo.c_str());
     }
-    printf("|\n");
+    printf("|\n>");
     for (auto const& algo : algos)
     {
         printf("| --- ");
@@ -507,14 +509,22 @@ TestFiles32(string const& dataDir, size_t repShift, file_list const& files, bool
 
     for (size_t i = 0;  i < files.size();  ++i)
     {
-        printf("| %s ", files[i].c_str());
+        printf(">| %s ", files[i].c_str());
 
         for (size_t j = 0;  j < all_times[i].size();  ++j)
         {
             printf("| %u ", (uint32_t) all_times[i][j]);
+            sums[j]+=all_times[i][j];
         }
         printf("|\n");
     }
+    printf(">| **sum**");
+    for (auto s : sums)
+    {
+        printf("| **%ld**", s);
+    }
+    printf("|\n>");
+
     printf("\n");
     fflush(stdout);
 }
