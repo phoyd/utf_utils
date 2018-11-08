@@ -1,25 +1,36 @@
 #!/bin/bash
 
 tag=$1
-prefix=$2
+cxx=$2
+bdir=release-$cxx
+function fail() {
+ echo "error: $@" >2
+ exit 1
+}
 
 function run_test() {
- cmdline="${prefix}/utf_utils_test -dd test_data -al phoyd,kewb-fast,kewb-fast-unrolled,kewb-sse"
+ if [ ! -f build.ninja ]; then 
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$cxx  .. || fail "cmake"
+ fi 
+ cmdline="./utf_utils_test -dd ../test_data -al phoyd,kewb-fast,kewb-fast-unrolled,kewb-sse"
  echo "# $tag"
  echo "command line: $cmdline"
  echo 
- ninja -C ${prefix} >/dev/null 
- ${cmdline}
+  
+ ninja || fail "ninja!"
+ ${cmdline} || fail "command"
 }
 
 function run()
 {
-	shift
-	run_test $@ | tee $tag.tmp
-	grep '^>' $tag.tmp | sed 's/^>//g' >$tag.md
+	[ -d  "$bdir" ]  || mkdir -p "$bdir"
+        cd $bdir
+	run_test $@ | tee result.tmp
+	grep '^>' result.tmp | sed 's/^>//g' >result.md
+        cd ..
 }
 
 run
-echo "** output in $tag.md"
+echo "** output in $bdir/result.md"
 
 
