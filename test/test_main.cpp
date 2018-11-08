@@ -11,7 +11,7 @@ using namespace std;
 static std::string testlist="";
 bool FilterTest(const char *s) {
         if (testlist.size()==0) return true;
-        return testlist.find(s)!=string::npos;
+        return testlist.find(std::string(s)+",")!=string::npos;
 }
 //--------------
 //
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
     {
       if (++i < argc)
       {
-          testlist=argv[i];
+          testlist=std::string(argv[i])+",";
       }
     }
     else if (arg == "-rx")
