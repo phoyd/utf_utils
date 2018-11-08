@@ -591,6 +591,7 @@ struct transformer
 #ifdef USE_SSE2
             if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
             {
+            constexpr int simd_limit=2; // use SSE write if at least 2 leading ASCII characters were found.
             if constexpr (std::is_same<DestFilter,utf16_filter>::value )
             {
                 // 4 safe code points mean: both reader and write are at least 16 bytes long.
@@ -607,7 +608,7 @@ struct transformer
                 // But this would effectively disable the loop unrolling
                 // here, so we skip this until we have full SSE
                 // conversion routine:
-                if (non_ascii) goto unroll; // usually better
+                if (non_ascii & mask<simd_limit>()) goto unroll; // usually better
 
                 auto zero=_mm_set1_epi8(0);
                 auto firstHalf = _mm_unpacklo_epi8(chunk, zero);
@@ -626,6 +627,7 @@ struct transformer
                     s += nv;
                     // Remove the non-ASCII road block:
                     s+=transform_one(*reader++,reader,writer);
+                    // TODO: Use the information from non_ascii to decide what to do next.
                     goto rest;
                 }
                 reader += 16;
@@ -641,7 +643,7 @@ struct transformer
                 int  non_ascii = _mm_movemask_epi8(chunk);                   //- Determine which octets have high bit set
 
                 // skip if non-ASCII for now.
-                if (non_ascii) goto unroll;
+                if (non_ascii & mask<simd_limit>()) goto unroll;
 
                 auto zero      = _mm_set1_epi8(0);                           //- Zero out the interleave register
 
