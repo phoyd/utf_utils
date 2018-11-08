@@ -6,6 +6,8 @@
 #include <iterator>
 #include <stdexcept>
 
+#include <emmintrin.h>
+
 namespace xlang::impl::code_converter
 {
 //
@@ -14,8 +16,6 @@ namespace xlang::impl::code_converter
 // Note:
 // CCG=C++ Core Guidelines (https://github.com/isocpp/CppCoreGuidelines)
 // GSL=CCG support library (https://github.com/Microsoft/GSL/)
-
-using char8_t = uint8_t;
 
 #ifndef GSL_LIKELY
 #if defined(__clang__) || defined(__GNUC__)
@@ -34,12 +34,15 @@ using char8_t = uint8_t;
 // Tell the optimizer that the predicate cond must hold. It is unspecified
 // whether or not cond is actually evaluated.
 //
+#define GSL_ASSUME(X)
+#ifndef GSL_ASSUME
 #ifdef _MSC_VER
 #define GSL_ASSUME(cond) __assume(cond)
 #elif defined(__clang__) || defined(__GNUC__)
 #define GSL_ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
 #else
 #define GSL_ASSUME(cond) static_cast<void>((cond) ? 0 : 0)
+#endif
 #endif
 //
 // GSL_ASSUME() is not a compiler hint. Instead it kills all code paths where the assumption would
@@ -190,24 +193,24 @@ public:
     // for optimizations (like omitting buffer checks)
     static constexpr size_t max_cv_len = 1;
 
-    // Read as single code point from input 'in'. 'b' is a lookahead,
+    // Decode as single code point from input 'in'. 'b' is a lookahead,
     // so we don't need to read anything.
     template <class In>
-    static char32_t XLANG_FORCE_INLINE read(char32_t b, In&&)
+    static char32_t XLANG_FORCE_INLINE decode(char32_t b, In&&)
     {
         return if_valid(b);
     }
     // Convert 'c' to the output format and write it to 'out'
     // Returns the number of cove values that have been written
     template <class Out>
-    static int XLANG_FORCE_INLINE write(char32_t c, Out&& out)
+    static int XLANG_FORCE_INLINE encode(char32_t c, Out&& out)
     {
-        return write_valid(if_valid(c), out);
+        return encode_valid(if_valid(c), out);
     }
     // Same as above, except that it does not check if 'c' is a
     // valid code point (for example, because it has been checked before)
     template <class Out>
-    static int XLANG_FORCE_INLINE write_valid(char32_t c, Out&& out)
+    static int XLANG_FORCE_INLINE encode_valid(char32_t c, Out&& out)
     {
         XLANG_ASSUME(is_valid_cp(c));
         *out++=c;
@@ -216,8 +219,8 @@ public:
 };
 
 //
-// The utf16_filter reads and writes UTF16 encoded code values in the
-// native endian, without BOM checking.
+// The utf16_filter encodes and decodes UTF16 code values in
+// native endian.
 //
 class utf16_filter
 {
@@ -229,7 +232,7 @@ public:
     // read up to 'max_cv_len' UTF-16 code values from 'h' and 'in' and try to make
     // a valid codepoint from it.
     template <class In>
-    static char32_t XLANG_FORCE_INLINE read(char16_t h, In&& in)
+    static char32_t XLANG_FORCE_INLINE decode(char16_t h, In&& in)
     {
         if (is_high_surrogate(h))
         {
@@ -244,13 +247,13 @@ public:
     // write up to two UTF-16 code values to 'out'. The output byte order
     // is the native byte order.
     template <class Out>
-    static int XLANG_FORCE_INLINE write(char32_t c, Out&& out)
+    static int XLANG_FORCE_INLINE encode(char32_t c, Out&& out)
     {
-        return write_valid(if_valid(c), out);
+        return encode_valid(if_valid(c), out);
     }
 
     template <class Out>
-    static int XLANG_FORCE_INLINE write_valid_ext(char32_t c, Out&& out)
+    static int XLANG_FORCE_INLINE encode_valid_ext(char32_t c, Out&& out)
     {
         c -= 0x10000;
         XLANG_ASSUME(c <= 0xfffff); // because is_valid_cp(c);
@@ -261,12 +264,12 @@ public:
         *out++=h;
         // 0xdc00 + 0x3ff == 0xdfff
         // therefore l is a valid low surrogate
-        char16_t l = 0xdc00 + (c & 0x3ffu);
+        char16_t l = 0xdc00 + (c & 0x3ff);
         *out++=l;
         return 2;
     }
     template <class Out>
-    static int XLANG_FORCE_INLINE write_valid(char32_t c, Out&& out)
+    static int XLANG_FORCE_INLINE encode_valid(char32_t c, Out&& out)
     {
         XLANG_ASSUME(is_valid_cp(c));
         if (c < 0x10000)
@@ -276,7 +279,7 @@ public:
         }
         else
         {
-            return write_valid_ext(c, std::forward<Out>(out));
+            return encode_valid_ext(c, std::forward<Out>(out));
         }
     }
 };
@@ -286,6 +289,7 @@ public:
 //
 class utf8_filter
 {
+    using char8_t = uint8_t;
 public:
     typedef char8_t cvt;
     static constexpr size_t max_cv_len = 4;
@@ -314,6 +318,15 @@ private:
         constexpr auto m=mask<Count>();
         return (b & ~m ) ^ Mark;
     }
+    template <unsigned Mark, unsigned Start, unsigned Count>
+    static auto constexpr store_nck(char32_t& cp, char8_t b)
+    {
+        static_assert(Count < 8, "invalid bitcount");
+        static_assert(Count + Start < 32, "invalid bitstart");
+        auto v=static_cast<char32_t>(deposit<Start,Count>(b));
+        cp = (cp | v);
+        return 0u;
+    }
 public:
     // Read up to 4 input values as UTF-8 and produce a UTF-32 code point
     // in native byte order.
@@ -327,8 +340,15 @@ public:
     // 5   26  00200000 03FFFFFF 111110vv 10vvvvvv 10vvvvvv 10vvvvvv 10vvvvvv
     // 6   31  04000000 7FFFFFFF 1111110v 10vvvvvv 10vvvvvv 10vvvvvv 10vvvvvv 10vvvvvv
     //
+    // UTF-8 encoding for each Hex Max:
+    // 1    0x7f
+    // 2    0xdf 0xbf
+    // 3    0xef 0xbf 0xbf
+    // 4    0xf4 0x8f 0xbf 0xbf
+    // these are out switch values below
+#define BRANCHLESS 1
     template <class In>
-    static char32_t XLANG_FORCE_INLINE read(char8_t b, In&& in)
+    static char32_t XLANG_FORCE_INLINE decode(char8_t b, In&& in)
     {
         // ATTENTION:
         // * no-returns are falling through 'invalid' at the end.
@@ -340,25 +360,49 @@ public:
         else if (b <= 0xdf) // 0x80..0x7ff
         {
             char32_t cp = 0;
-            char8_t b1 = *in++;
-            auto fail = (store_ck<0xc0, 6, 5>(cp, b) || store_ck<0x80, 0, 6>(cp, b1));
+            char8_t c = *in++;
+#if BRANCHLESS
+            auto fail = (store_ck<0xc0, 6, 5>(cp, b) | store_ck<0x80, 0, 6>(cp, c));
+            GSL_ASSUME(cp <= mask<5+6>());
             if (!fail && (cp >= 0x80)) return cp;
+#else
+            auto fail = (store_ck<0xc0, 6, 5>(cp, b) || store_ck<0x80, 0, 6>(cp, c));
+            if (!fail && (cp >= 0x80)) return cp;
+#endif
         }
         else if (b <= 0xef) // 0x800..0xffff
         {
             char32_t cp = 0;
-            char8_t b1 = *in++;
-            char8_t b2 = *in++;
-            auto fail = (store_ck<0xe0, 12, 4>(cp, b) || store_ck<0x80, 6, 6>(cp, b1) ||
-                         store_ck<0x80, 0, 6>(cp, b2));
+            char8_t c = *in++;
+            char8_t d = *in++;
+#if BRANCHLESS
+            auto fail = (store_nck<0xe0, 12, 4>(cp, b) | store_ck<0x80, 6, 6>(cp, c) |
+                         store_ck<0x80, 0, 6>(cp, d));
+            GSL_ASSUME(cp <= mask<4+6+6>());
             if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
-        }
-        else if (b <= 0xf7) // 0x10000-0x10ffff
+#else
+            auto fail = (store_ck<0xe0, 12, 4>(cp, b) || store_ck<0x80, 6, 6>(cp, c) ||
+                         store_ck<0x80, 0, 6>(cp, d));
+            if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
+#endif
+        }        
+        else if (b <= 0xf4) // 0x10000-0x10ffff
         {
             char32_t cp = 0;
-            auto fail = (store_ck<0xf0, 18, 3>(cp, b) || store_ck<0x80, 12, 6>(cp, *in++) ||
-                         store_ck<0x80, 6, 6>(cp, *in++) || store_ck<0x80, 0, 6>(cp, *in++));
+            char8_t c = *in++;
+            char8_t d = *in++;
+            char8_t e = *in++;
+#if BRANCHLESS
+            auto fail = (store_nck<0xf0, 18, 3>(cp, b) | store_ck<0x80, 12, 6>(cp, c) |
+                         store_ck<0x80, 6, 6>(cp, d) | store_ck<0x80, 0, 6>(cp, e));
+            GSL_ASSUME(cp <= mask<3+6+6+6>()); // 0x1FFFFF
+
             if (!fail && (cp >= 0x10000) && (cp <= 0x10ffff)) return cp;
+#else
+            auto fail = (store_ck<0xf0, 18, 3>(cp, b) || store_ck<0x80, 12, 6>(cp, c) ||
+                         store_ck<0x80, 6, 6>(cp, d) || store_ck<0x80, 0, 6>(cp, e));
+            if (!fail && (cp >= 0x10000) && (cp <= 0x10ffff)) return cp;
+#endif
         }
         invalid();
     }
@@ -366,13 +410,13 @@ public:
     // Convert a UTF-32 codepoint into up to 4 UTF-8 code units and
     // write them to 'out'.
     template <class Out>
-    static int XLANG_FORCE_INLINE write(char32_t cp, Out&& out)
+    static int XLANG_FORCE_INLINE encode(char32_t cp, Out&& out)
     {
-        return write_valid(if_valid(cp), out);
+        return encode_valid(if_valid(cp), out);
     }
 
     template <class Out>
-    static int XLANG_FORCE_INLINE write_valid(char32_t cp, Out&& out)
+    static int XLANG_FORCE_INLINE encode_valid(char32_t cp, Out&& out)
     {
         XLANG_ASSUME(is_valid_cp(cp));
         if (cp <= 0x7f)
@@ -442,19 +486,47 @@ struct conv_pair<utf32_filter, utf16_filter>
 // a 'transformer' which can be specialized on its type parameters, for
 // example to implement an optimized conversion pair.
 //
+
+
 template <class SrcFilter, class DestFilter>
 struct transformer
 {
     SrcFilter&& src;
     DestFilter&& dst;
 
-    template <class R, class W>
-    size_t XLANG_FORCE_INLINE tranform_one(typename SrcFilter::cvt b, R&& reader, W&& writer)
+    template<class R, class W>
+    bool fastfwd(R &r, W &w)
     {
-#if 1
+        if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
+        {
+            auto v=(uint32_t*)&*r;
+            if ((*v & 0x80808080)==0)
+            {
+                w[0]=r[0];
+                w[1]=r[1];
+                w[2]=r[2];
+                w[3]=r[3];
+                w+=4;
+                r+=4;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template <class R, class W>
+    size_t XLANG_FORCE_INLINE transform_safe(R& reader, W& writer)
+    {
+        if (fastfwd(reader,writer)) return 4;
+        return transform_one(*reader++,reader,writer);
+    }
+    template <class R, class W>
+    size_t XLANG_FORCE_INLINE transform_one(typename SrcFilter::cvt b, R& reader, W& writer)
+    {
+#ifdef __clang__
      // TODO: The whole passthrough thing shouldn't be neccesary, if the
-     // compiler would look into the read() and write(). For example,
-     // utf8_filter.read(b)  returns b immediately if b<=0x7f
+     // compiler would look into decode() and encode(). For example,
+     // utf8_filter.decode(b)  returns b immediately if b<=0x7f
      // while utf16_filter.writer simply writes every cp < 0x7ff directly
      // to the writer. So, the compiler should see this (because of inlining)
      // and write b directly to the output.
@@ -462,17 +534,64 @@ struct transformer
      // if this block is disabled. clang OTOH is a much weaker inliner
      // and seems to forget things it should have learned from the inlined
      // code paths.
-     // Solution could be giving a contibuation to write, so that write
-     // is directly inlined into read.
         if (conv_pair<SrcFilter,DestFilter>::is_passthrough(b))
         {
             *writer++=(b);
             return 1;
         }
 #endif
-        auto cp = src.read(b, reader);
-        return dst.write_valid(cp, writer);
+        return dst.encode_valid(src.decode(b,reader), writer);
     }
+    template <int N, class R, class W>
+    size_t XLANG_FORCE_INLINE transform_multi(std::integral_constant<int,N>,R& reader, W& writer)
+    {
+        if constexpr(N>=4)
+        {
+            size_t s=0;
+            if (std::is_same<SrcFilter,utf8_filter>::value && std::is_same<DestFilter,utf16_filter>::value )
+            {
+                auto *src=&*reader;
+                auto *dst=&*writer;
+
+                __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&*reader));
+                if (!_mm_movemask_epi8(chunk))
+                {
+                    // unpack the first 8 bytes, padding with zeros
+                    __m128i firstHalf = _mm_unpacklo_epi8(chunk, _mm_set1_epi8(0));
+                    // and store to the destination
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(dst), firstHalf);
+
+                    // do the same with the last 8 bytes
+                    __m128i secondHalf = _mm_unpackhi_epi8 (chunk, _mm_set1_epi8(0));
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(dst+8), secondHalf);
+
+                    // Advance
+                    reader += 16;
+                    writer += 16;
+                    s+=16;
+                    goto rest;
+                 }
+            }
+            s+=transform_safe(reader,writer);
+            s+=transform_safe(reader,writer);
+            s+=transform_safe(reader,writer);
+            s+=transform_safe(reader,writer);
+            rest:
+            return s+transform_multi(std::integral_constant<int,N-4>{},reader,writer);
+        }
+        else
+        {
+            size_t s=0;
+            switch(N)
+            {
+            case 3: s+=transform_safe(reader,writer); // fallthrough
+            case 2: s+=transform_safe(reader,writer); // fallthrough
+            case 1: s+=transform_safe(reader,writer); // fallthrough
+            case 0: return s;
+            }
+        }
+    }
+
 };
 
 // 'convert' tries to convert the *complete* range from 'in_start' to
@@ -496,10 +615,10 @@ struct transformer
 // output iterator to the reference parameter "result_size"
 //
 // If a complete conversion requires more input than available, then
-// the input is considered malformed.
+// the input is considered malformed and invalid() is raised.
 //
-// if the conversion needs more output buffer than present, then
-// buffer_error() is signaled.
+// if the conversion needs more output buffer than available, then
+// buffer_error() is raised.
 
 template <class In, class Out, class SrcFilter, class DestFilter,
           class InCat = typename std::iterator_traits<In>::iterator_category,
@@ -575,7 +694,7 @@ public:
 
         while (in_start != in_end)
         { //
-            write_count += trans.tranform_one(*in_start++, reader_checked, writer_checked);
+            write_count += trans.transform_one(*in_start++, reader_checked, writer_checked);
         }
         return write_count;
     }
@@ -603,19 +722,17 @@ public:
             auto out_len = out_end - out_start;
             auto safelen =
                 std::min(in_len / SrcFilter::max_cv_len, out_len / DestFilter::max_cv_len);
-            if (safelen<4) break;
+            constexpr int SZ=4;
+            if (safelen<SZ) break;
             size_t i=0;
             // unroll
-            for (;(i+3)<safelen;i+=4)
+            for (;(i+SZ-1)<safelen;i+=SZ)
             {
-                trans.tranform_one(*in_start++, in_start,out_start);
-                trans.tranform_one(*in_start++, in_start,out_start);
-                trans.tranform_one(*in_start++, in_start,out_start);
-                trans.tranform_one(*in_start++, in_start,out_start);
+                trans.transform_multi(std::integral_constant<int,SZ>{}, in_start,out_start);
             }
             for (;i<safelen;i++)
             {
-                trans.tranform_one(*in_start++, in_start,out_start);
+                trans.transform_one(*in_start++, in_start,out_start);
             }
         }
 
@@ -624,7 +741,7 @@ public:
 
         while (in_start < in_end)
         { //
-            trans.tranform_one(*in_start++, reader_checked, writer_checked);
+            trans.transform_one(*in_start++, reader_checked, writer_checked);
         }
         return out_start - out_start_org;
 
@@ -648,9 +765,9 @@ public:
         while (in_start != in_end)
         {
             auto b = *in_start++;
-            auto cp = src_filter.read(b, reader_checked);
+            auto cp = src_filter.decode(b, reader_checked);
             dev_null<typename DestFilter::cvt> null;
-            write_count += dst_filter.write_valid(cp, null);
+            write_count += dst_filter.encode_valid(cp, null);
         }
         return write_count;
     }
