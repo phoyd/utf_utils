@@ -13,8 +13,11 @@
 #define __SSE__  1
 #endif
 #endif
-
 #if __SSE2__
+#define USE_SSE2
+#endif
+
+#ifdef USE_SSE2
 #include <emmintrin.h>
 #endif
 
@@ -568,8 +571,8 @@ struct transformer
     {
         if constexpr(N>=4)
         {
-#if __SSE2__
             size_t s=0;
+#ifdef USE_SSE2
             if (std::is_same<SrcFilter,utf8_filter>::value && std::is_same<DestFilter,utf16_filter>::value )
             {
                 auto *src=&*reader;
@@ -593,8 +596,8 @@ struct transformer
                     s+=16;
                     goto rest;
                  }
-#endif
             }
+#endif
             s+=transform_safe(reader,writer);
             s+=transform_safe(reader,writer);
             s+=transform_safe(reader,writer);
