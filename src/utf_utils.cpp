@@ -715,7 +715,26 @@ UtfUtils::FastUnrolledBigTableConvert(char8_t const* pSrc, char8_t const* pSrcEn
                 return -1;\
             }\
         } } while(0)
-
+    for(;;)
+    {
+        auto in_len = pSrcEnd-pSrc;
+        //auto out_len = out_end - out_start;
+        auto safelen =in_len/4;
+        if (safelen<4) break;
+        int i=0;
+        // unroll
+        for (;(i+3)<safelen;i+=4)
+        {
+            BODY;
+            BODY;
+            BODY;
+            BODY;
+        }
+        for (;i<safelen;i++)
+        {
+            BODY;
+        }
+    }
     while (pSrc < pSrcEnd)
     {
         BODY;
