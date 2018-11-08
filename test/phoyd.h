@@ -6,7 +6,17 @@
 #include <iterator>
 #include <stdexcept>
 
+#ifdef _MSC_VER
+#if (defined(_M_AMD64) || defined(_M_X64) || (M_IX86_FP==2))
+#define __SSE2__ 1
+#elif _M_IX86_FP == 1
+#define __SSE__  1
+#endif
+#endif
+
+#if __SSE2__
 #include <emmintrin.h>
+#endif
 
 namespace xlang::impl::code_converter
 {
@@ -558,6 +568,7 @@ struct transformer
     {
         if constexpr(N>=4)
         {
+#if __SSE2__
             size_t s=0;
             if (std::is_same<SrcFilter,utf8_filter>::value && std::is_same<DestFilter,utf16_filter>::value )
             {
@@ -582,6 +593,7 @@ struct transformer
                     s+=16;
                     goto rest;
                  }
+#endif
             }
             s+=transform_safe(reader,writer);
             s+=transform_safe(reader,writer);
