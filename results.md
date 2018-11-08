@@ -1,7 +1,7 @@
 
 # Benchmark results
 
-created: Fri Nov  9 00:44:14 CET 2018 
+created: Fri Nov  9 00:50:30 CET 2018 
 
 command line: ./utf_utils_test -dd ../test_data -rx 31 -al phoyd,kewb-fast,kewb-fast-unrolled,kewb-sse
 
@@ -200,4 +200,48 @@ command line: ./utf_utils_test -dd ../test_data -rx 31 -al phoyd,kewb-fast,kewb-
 ## Raspberry PI 3
 
 
+### Convert UTF8->UTF16
+
+| file\algo| phoyd | kewb-fast | kewb-fast-unrolled |
+| --- | --- | --- | --- |
+| english_wiki.txt | 6472 | 11215 | 11270 |
+| chinese_wiki.txt | 9697 | 16295 | 16489 |
+| hindi_wiki.txt | 10790 | 18105 | 18287 |
+| japanese_wiki.txt | 11203 | 19189 | 19465 |
+| korean_wiki.txt | 9783 | 15894 | 16135 |
+| portuguese_wiki.txt | 6924 | 11557 | 11564 |
+| russian_wiki.txt | 10859 | 16679 | 17097 |
+| swedish_wiki.txt | 7120 | 11611 | 11673 |
+| stress_test_0.txt | 5540 | 10775 | 10696 |
+| stress_test_1.txt | 13905 | 25480 | 25786 |
+| stress_test_2.txt | 12992 | 21317 | 21789 |
+| hindi_wiki_in_english.txt | 6220 | 11327 | 11388 |
+| hindi_wiki_in_russian.txt | 10905 | 16711 | 17136 |
+| kermit.txt | 8707 | 14033 | 14299 |
+| z1_kosme.txt | 16082 | 15409 | 19136 |
+| z1_ascii.txt | 16235 | 12163 | 15170 |
+| **sum**| **163.434000**| **247.760000**| **257.380000**|
+
+
+### Convert UTF8->UTF16
+
+| file\algo| phoyd | kewb-fast | kewb-fast-unrolled |
+| --- | --- | --- | --- |
+| english_wiki.txt | 5901 | 11108 | 10169 |
+| chinese_wiki.txt | 10243 | 17266 | 15846 |
+| hindi_wiki.txt | 11396 | 19330 | 17908 |
+| japanese_wiki.txt | 12278 | 21373 | 19464 |
+| korean_wiki.txt | 10220 | 16904 | 15624 |
+| portuguese_wiki.txt | 6901 | 11941 | 10893 |
+| russian_wiki.txt | 10965 | 18723 | 16804 |
+| swedish_wiki.txt | 7112 | 11940 | 10966 |
+| stress_test_0.txt | 5606 | 10801 | 9936 |
+| stress_test_1.txt | 15632 | 28810 | 25974 |
+| stress_test_2.txt | 13717 | 24258 | 22013 |
+| hindi_wiki_in_english.txt | 6099 | 11388 | 10423 |
+| hindi_wiki_in_russian.txt | 10957 | 18612 | 16788 |
+| kermit.txt | 8855 | 14950 | 13843 |
+| z1_kosme.txt | 16925 | 16524 | 19437 |
+| z1_ascii.txt | 16421 | 12325 | 16858 |
+| **sum**| **169.228000s**| **266.253000s**| **252.946000s**|
 
