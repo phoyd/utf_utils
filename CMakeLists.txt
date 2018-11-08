@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 3.5)
 project (utf_utils)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+#set(CMAKE_CXX_STANDARD 17)
+#set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(src)
 
@@ -32,19 +32,19 @@ add_executable(utf_utils_test ${Sources})
 set(CMAKE_VERBOSE_MAKEFILE 1)
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
-    set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic -Wextra")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -pedantic -Wextra -Wno-unused-parameter")
+    set(CMAKE_C_FLAGS_DEBUG   "-std=gnu++17 -g -Wall -pedantic -Wextra")
+    set(CMAKE_CXX_FLAGS_DEBUG "-std=gnu++17 -g -Wall -pedantic -Wextra -Wno-unused-parameter")
 
-    set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic -Wextra")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
+    set(CMAKE_C_FLAGS_RELEASE   "-std=gnu++17 -O3 -march=native -Wall -pedantic -Wextra")
+    set(CMAKE_CXX_FLAGS_RELEASE "-std=gnu++17 -O3 -march=native -stdlib=libc++ -Wall -pedantic -Wextra -Wno-unused-parameter")
 
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 
-    set(CMAKE_C_FLAGS_DEBUG   "-g -Wall -pedantic")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g  -Wall -pedantic -Wextra")
+    set(CMAKE_C_FLAGS_DEBUG   "-std=gnu++17 -g -Wall -pedantic")
+    set(CMAKE_CXX_FLAGS_DEBUG "-std=gnu++17 -g  -Wall -pedantic -Wextra")
 
-    set(CMAKE_C_FLAGS_RELEASE   "-O3 -march=native -Wall -pedantic")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -Wall -pedantic -Wextra")
+    set(CMAKE_C_FLAGS_RELEASE   "-std=gnu++17 -O3 -march=native -Wall -pedantic")
+    set(CMAKE_CXX_FLAGS_RELEASE "-std=gnu++17 -O3 -march=native -Wall -pedantic -Wextra")
 
 endif()
 
