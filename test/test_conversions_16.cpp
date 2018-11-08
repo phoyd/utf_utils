@@ -380,9 +380,10 @@ TestOneConversion16
 
     dst.resize((dstLen >= 0) ? (size_t) dstLen : 0u);
 
-    double mubs=1.0*src.size()*reps*(1000.0/tmdiff)/1e6;
-    printf("UTF-8 to UTF-16 took %4u msec (%zu/%zu units/units, %f munits/sec) (%zu reps) (%s)\n",
-    	(uint16_t) tmdiff, src.size(), dst.size(), mubs, reps, ((name != nullptr) ? name : ""));
+    double mups=1.0*src.size()*reps*(1000.0/tmdiff)/1e6;
+    double mpps=1.0*dst.size()*reps*(1000.0/tmdiff)/1e6;
+    printf("UTF-8 to UTF-16 took %4u msec (%zu/%zu units/units, %f munits/sec, %f mpoints/s) (%zu reps) (%s)\n",
+        (uint16_t) tmdiff, src.size(), dst.size(), mups, mpps, reps, ((name != nullptr) ? name : ""));
 
     if (dst != answer)
     {
