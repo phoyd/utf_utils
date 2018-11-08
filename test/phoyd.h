@@ -173,6 +173,23 @@ auto constexpr extract(T in)
     return (in>>Start)&m;
 }
 
+#if defined(__clang__) || defined(__GNUG__)
+    inline int get_trailing_zeros(int x) noexcept
+    {
+        return  __builtin_ctz((unsigned int) x);
+    }
+
+#elif defined(_MSC_VER)
+    inline int get_trailing_zeros(int x) noexcept
+    {
+        unsigned long   indx;
+        _BitScanForward(&indx, (unsigned long) x);
+        return (int32_t) indx;
+    }
+#else
+#error "This platform needs an implementaton of 'get_trailing_zeros'"
+#endif
+
 //
 // Codepoints in the surrogate area or after U++10FFFF are invalid.
 //
@@ -409,7 +426,7 @@ public:
                          store_ck<0x80, 0, 6>(cp, d));
             if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
 #endif
-        }        
+        }
         else if (b <= 0xf4) // 0x10000-0x10ffff
         {
             char32_t cp = 0;
@@ -518,36 +535,16 @@ struct transformer
     SrcFilter&& src;
     DestFilter&& dst;
 
-    template<class R, class W>
-    bool fastfwd(R &r, W &w)
-    {
-        if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
-        {
-            auto v=(uint32_t*)&*r;
-            if ((*v & 0x80808080)==0)
-            {
-                w[0]=r[0];
-                w[1]=r[1];
-                w[2]=r[2];
-                w[3]=r[3];
-                w+=4;
-                r+=4;
-                return true;
-            }
-        }
-        return false;
-    }
 
     template <class R, class W>
     size_t XLANG_FORCE_INLINE transform_safe(R& reader, W& writer)
     {
-        if (fastfwd(reader,writer)) return 4;
         return transform_one(*reader++,reader,writer);
     }
     template <class R, class W>
     size_t XLANG_FORCE_INLINE transform_one(typename SrcFilter::cvt b, R& reader, W& writer)
     {
-#ifdef __clang__
+#ifdef xxx__clang__
      // TODO: The whole passthrough thing shouldn't be neccesary, if the
      // compiler would look into decode() and encode(). For example,
      // utf8_filter.decode(b)  returns b immediately if b<=0x7f
@@ -571,31 +568,105 @@ struct transformer
     {
         if constexpr(N>=4)
         {
+            // 'N' is the number of code points that are safe to read or write.
             size_t s=0;
-#ifdef USE_SSE2
-            if (std::is_same<SrcFilter,utf8_filter>::value && std::is_same<DestFilter,utf16_filter>::value )
+#ifndef USE_SSE2
+            if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
             {
-                auto *src=&*reader;
-                auto *dst=&*writer;
-
-                __m128i chunk = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&*reader));
-                if (!_mm_movemask_epi8(chunk))
+                auto v=(uint32_t*)&*reader;
+                if ((*v & 0x80808080)==0)
                 {
-                    // unpack the first 8 bytes, padding with zeros
-                    __m128i firstHalf = _mm_unpacklo_epi8(chunk, _mm_set1_epi8(0));
-                    // and store to the destination
-                    _mm_storeu_si128(reinterpret_cast<__m128i*>(dst), firstHalf);
+                    writer[0]=reader[0];
+                    writer[1]=reader[1];
+                    writer[2]=reader[2];
+                    writer[3]=reader[3];
+                    writer+=4;
+                    reader+=4;
+                    s+=4;
+                    goto rest;
+                }
+            }
+#endif
 
-                    // do the same with the last 8 bytes
-                    __m128i secondHalf = _mm_unpackhi_epi8 (chunk, _mm_set1_epi8(0));
-                    _mm_storeu_si128(reinterpret_cast<__m128i*>(dst+8), secondHalf);
+#ifdef USE_SSE2
+            if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
+            {
+            if constexpr (std::is_same<DestFilter,utf16_filter>::value )
+            {
+                // 4 safe code points mean: both reader and write are at least 16 bytes long.
+                // TODO: detect contiguous iterators.
+                auto *src=reinterpret_cast<const __m128i*>(&*reader);
+                auto *dst=reinterpret_cast<__m128i*>(&*writer);
+                // unaligned load
+                auto zero=_mm_set1_epi8(0);
+                auto chunk = _mm_loadu_si128(src);
+                int non_ascii=_mm_movemask_epi8(chunk);
 
-                    // Advance
+
+                auto firstHalf = _mm_unpacklo_epi8(chunk, zero);
+                // and store to the destination
+                _mm_storeu_si128(dst, firstHalf);
+
+
+                auto secondHalf = _mm_unpackhi_epi8 (chunk, zero);
+                _mm_storeu_si128(dst+1, secondHalf);
+
+                if (non_ascii)
+                {
+                    auto nv=get_trailing_zeros(non_ascii);
+                    reader += nv;
+                    writer += nv;
+                    s += nv;
+                    // Remove the non-ASCII road block:
+                    s+=transform_one(*reader++,reader,writer);
+                    goto rest;
+                }
+                else
+                {
                     reader += 16;
                     writer += 16;
                     s+=16;
                     goto rest;
                  }
+              }
+              else if constexpr (std::is_same<DestFilter,utf32_filter>::value )
+              {
+                auto *src=reinterpret_cast<const __m128i*>(&*reader);
+                auto *dst=reinterpret_cast<__m128i*>(&*writer);
+                auto zero      = _mm_set1_epi8(0);                           //- Zero out the interleave register
+                auto chunk     = _mm_loadu_si128(src);     //- Load a register with 8-bit bytes
+                int  non_ascii = _mm_movemask_epi8(chunk);                   //- Determine which octets have high bit set
+
+                auto half      = _mm_unpacklo_epi8(chunk, zero);              //- Unpack bytes 0-7 into 16-bit words
+                auto qrtr      = _mm_unpacklo_epi16(half, zero);              //- Unpack words 0-3 into 32-bit dwords
+                                 _mm_storeu_si128(dst, qrtr);            //- Write to memory
+                     qrtr      = _mm_unpackhi_epi16(half, zero);              //- Unpack words 4-7 into 32-bit dwords
+                                 _mm_storeu_si128(dst+1, qrtr);      //- Write to memory
+
+                     half      = _mm_unpackhi_epi8(chunk, zero);              //- Unpack bytes 8-15 into 16-bit words
+                     qrtr      = _mm_unpacklo_epi16(half, zero);              //- Unpack words 8-11 into 32-bit dwords
+                                 _mm_storeu_si128(dst+2, qrtr);      //- Write to memory
+                     qrtr      = _mm_unpackhi_epi16(half, zero);              //- Unpack words 12-15 into 32-bit dwords
+                                 _mm_storeu_si128(dst+3, qrtr);     //- Write to memory
+
+                 if (non_ascii)
+                 {
+                     auto nv=get_trailing_zeros(non_ascii);
+                     reader += nv;
+                     writer += nv;
+                     s += nv;
+                     // Remove the non-ASCII road block:
+                     s+=transform_one(*reader++,reader,writer);
+                     goto rest;
+                 }
+                 else
+                 {
+                     reader += 16;
+                     writer += 16;
+                     s+=16;
+                     goto rest;
+                  }
+               }
             }
 #endif
             s+=transform_safe(reader,writer);
