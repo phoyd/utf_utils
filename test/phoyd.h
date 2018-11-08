@@ -598,11 +598,18 @@ struct transformer
                 auto *src=reinterpret_cast<const __m128i*>(&*reader);
                 auto *dst=reinterpret_cast<__m128i*>(&*writer);
                 // unaligned load
-                auto zero=_mm_set1_epi8(0);
                 auto chunk = _mm_loadu_si128(src);
                 int non_ascii=_mm_movemask_epi8(chunk);
 
+                // we could store the conversion
+                // result any way and search for the index
+                // after the non-ASCII code point (see below).
+                // But this would effectively disable the loop unrolling
+                // here, so we skip this until we have full SSE
+                // conversion routine:
+                if (non_ascii) goto unroll; // usually better
 
+                auto zero=_mm_set1_epi8(0);
                 auto firstHalf = _mm_unpacklo_epi8(chunk, zero);
                 // and store to the destination
                 _mm_storeu_si128(dst, firstHalf);
@@ -621,21 +628,22 @@ struct transformer
                     s+=transform_one(*reader++,reader,writer);
                     goto rest;
                 }
-                else
-                {
-                    reader += 16;
-                    writer += 16;
-                    s+=16;
-                    goto rest;
-                 }
+                reader += 16;
+                writer += 16;
+                s+=16;
+                goto rest;
               }
               else if constexpr (std::is_same<DestFilter,utf32_filter>::value )
               {
                 auto *src=reinterpret_cast<const __m128i*>(&*reader);
                 auto *dst=reinterpret_cast<__m128i*>(&*writer);
-                auto zero      = _mm_set1_epi8(0);                           //- Zero out the interleave register
                 auto chunk     = _mm_loadu_si128(src);     //- Load a register with 8-bit bytes
                 int  non_ascii = _mm_movemask_epi8(chunk);                   //- Determine which octets have high bit set
+
+                // skip if non-ASCII for now.
+                if (non_ascii) goto unroll;
+
+                auto zero      = _mm_set1_epi8(0);                           //- Zero out the interleave register
 
                 auto half      = _mm_unpacklo_epi8(chunk, zero);              //- Unpack bytes 0-7 into 16-bit words
                 auto qrtr      = _mm_unpacklo_epi16(half, zero);              //- Unpack words 0-3 into 32-bit dwords
@@ -659,16 +667,14 @@ struct transformer
                      s+=transform_one(*reader++,reader,writer);
                      goto rest;
                  }
-                 else
-                 {
-                     reader += 16;
-                     writer += 16;
-                     s+=16;
-                     goto rest;
-                  }
+                 reader += 16;
+                 writer += 16;
+                 s+=16;
+                 goto rest;
                }
             }
 #endif
+            unroll:
             s+=transform_safe(reader,writer);
             s+=transform_safe(reader,writer);
             s+=transform_safe(reader,writer);
