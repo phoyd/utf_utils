@@ -494,7 +494,7 @@ TestFiles32(string const& dataDir, size_t repShift, file_list const& files, bool
     }
 
     std::vector<int64_t> sums(algos.size(),0);
-    printf("\n>\n>## Convert UTF8->UTF16\n>\n");
+    printf("\n>\n>### Convert UTF8->UTF16\n>\n");
     printf("\ntabular summary:\n\n>| file\\algo");
     for (auto const& algo : algos)
     {
