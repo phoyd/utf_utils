@@ -12,7 +12,7 @@ function run_test() {
  if [ ! -f build.ninja ]; then 
   cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$cxx  .. || fail "cmake"
  fi 
- cmdline="./utf_utils_test -dd ../test_data -al phoyd,kewb-fast,kewb-fast-unrolled,kewb-sse"
+ cmdline="./utf_utils_test -dd ../test_data -rx 31 -al phoyd,kewb-fast,kewb-fast-unrolled,kewb-sse"
  echo "# $tag"
  echo "command line: $cmdline"
  echo 
