@@ -74,15 +74,22 @@ enum class converter_result
 };
 
 //
+// Implementation details
+//
+namespace detail
+{
+//
 // throw converter_result as exception (internal use)
 //
 [[noreturn]] inline void invalid() { throw converter_result::INVALID_INPUT_DATA; }
 [[noreturn]] inline void buffer_error() { throw converter_result::OUTPUT_TOO_SMALL; }
 
 //
-// Make an single, checked forward only "iterator" that is an alias to 'start' and checks against 'end'. std::iterator is deprecated, so
-// just enough iterator here to be useful in the decoder and encoder routines.
-template<class T, auto Err>
+// bounded<> is a single, checked, forward only "iterator" that is an alias
+// to 'start' and checks against 'end'. Since std::iterator is deprecated, this
+// is just enough iterator here to be useful here in the decoder and encoder routines.
+//
+template<class T, void Err()>
 struct bounded
 {
     T &start;
@@ -99,6 +106,10 @@ struct bounded
         return r;
     }
 };
+//
+// dev_num is an output iterator which does nothing at all. useful for measuring
+// output sizes.
+//
 template<class T>
 struct dev_null
 {
@@ -629,45 +640,6 @@ template <class In, class SrcFilter, class DestFilter,
           class InCat = typename std::iterator_traits<In>::iterator_category>
 class output_size_counter_spec;
 
-// forward to a specialization on the iterator types.
-template <class In, class Out, class SrcFilter, class DestFilter>
-inline converter_result convert(In in_start, In in_end, Out out_start, Out out_end,
-                                SrcFilter&& src_filter, DestFilter&& dst_filter,
-                                size_t& result_size) noexcept
-{
-    try
-    {
-        // dispatch conversion to an specialized overload.
-        auto sz = converter_spec<In, Out, SrcFilter, DestFilter>::convert(
-            in_start, in_end, out_start, out_end, std::forward<SrcFilter>(src_filter),
-            std::forward<DestFilter>(dst_filter));
-        result_size = sz;
-        return converter_result::OK;
-    } catch (converter_result r)
-    {
-        return r;
-    }
-}
-// forward to a specialization on the iterator types.
-template <class In, class SrcFilter, class DestFilter>
-inline converter_result output_size(In in_start, In in_end, SrcFilter&& src_filter,
-                                    DestFilter&& dst_filter, size_t& result_size) noexcept
-{
-    try
-    {
-        // dispatch conversion to an specialized overload.
-        auto sz = output_size_counter_spec<In, SrcFilter, DestFilter>::output_size(
-            in_start, in_end, std::forward<SrcFilter>(src_filter),
-            std::forward<DestFilter>(dst_filter));
-        result_size = sz;
-        return converter_result::OK;
-    } catch (converter_result r)
-    {
-        return r;
-    }
-}
-
-
 //
 //          Specialized Converter
 //
@@ -772,4 +744,53 @@ public:
         return write_count;
     }
 };
+
+} // namespace xlang::impl::code_converter::detail
+
+//
+// Make these part of the exported interf
+//
+using utf8_filter=detail::utf8_filter;
+using utf16_filter=detail::utf16_filter;
+using utf32_filter=detail::utf32_filter;
+
+//
+// The user visible conversion routine
+//
+template <class In, class Out, class SrcFilter, class DestFilter>
+inline converter_result convert(In in_start, In in_end, Out out_start, Out out_end,
+                                SrcFilter&& src_filter, DestFilter&& dst_filter,
+                                size_t& result_size) noexcept
+{
+    try
+    {
+        // dispatch conversion to an specialized overload.
+        auto sz = detail::converter_spec<In, Out, SrcFilter, DestFilter>::convert(
+            in_start, in_end, out_start, out_end, std::forward<SrcFilter>(src_filter),
+            std::forward<DestFilter>(dst_filter));
+        result_size = sz;
+        return converter_result::OK;
+    } catch (converter_result r)
+    {
+        return r;
+    }
+}
+// forward to a specialization on the iterator types.
+template <class In, class SrcFilter, class DestFilter>
+inline converter_result output_size(In in_start, In in_end, SrcFilter&& src_filter,
+                                    DestFilter&& dst_filter, size_t& result_size) noexcept
+{
+    try
+    {
+        // dispatch conversion to an specialized overload.
+        auto sz = detail::output_size_counter_spec<In, SrcFilter, DestFilter>::output_size(
+            in_start, in_end, std::forward<SrcFilter>(src_filter),
+            std::forward<DestFilter>(dst_filter));
+        result_size = sz;
+        return converter_result::OK;
+    } catch (converter_result r)
+    {
+        return r;
+    }
+}
 } // namespace xlang::impl::code_converter
