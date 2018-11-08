@@ -521,7 +521,7 @@ TestFiles16(string const& dataDir, size_t repShift, file_list const& files, bool
     printf(">| **sum**");
     for (auto s : sums)
     {
-        printf("| **%ld**", s);
+        printf("| **%fs**", s/1000.0);
     }
     printf("|\n>");
 

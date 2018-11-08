@@ -387,7 +387,7 @@ public:
     // 3    0xef 0xbf 0xbf
     // 4    0xf4 0x8f 0xbf 0xbf
     // these are out switch values below
-#define BRANCHLESS 0
+#define BRANCHLESS 1
     template <class In>
     static char32_t XLANG_FORCE_INLINE decode(char8_t b, In&& in)
     {
