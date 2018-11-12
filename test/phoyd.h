@@ -493,42 +493,6 @@ public:
     }
 };
 
-//
-// encodings with a common ASCII Plane might copy code values
-// without conversion. Specialize for EBCDIC, UTF-16
-//
-template<class S,class D>
-struct conv_pair
-{
-    static bool constexpr is_passthrough(typename S::cvt v)
-    {
-        return v <= 0x7f; // ASCII plane
-    }
-};
-template<>
-struct conv_pair<utf16_filter, utf32_filter>
-{
-    static bool constexpr is_passthrough(typename utf16_filter::cvt v)
-    {
-        return (v <= 0xd7ff);
-    }
-};
-template<>
-struct conv_pair<utf32_filter, utf16_filter>
-{
-    static bool constexpr is_passthrough(typename utf32_filter::cvt v)
-    {
-        return (v <= 0xd7ff);
-    }
-};
-
-//
-// We can use SrcFilter and DestFilter as they are or join them in
-// a 'transformer' which can be specialized on its type parameters, for
-// example to implement an optimized conversion pair.
-//
-
-
 template <class SrcFilter, class DestFilter>
 struct transformer
 {
@@ -544,23 +508,6 @@ struct transformer
     template <class R, class W>
     size_t XLANG_FORCE_INLINE transform_one(typename SrcFilter::cvt b, R& reader, W& writer)
     {
-#ifdef xxx__clang__
-     // TODO: The whole passthrough thing shouldn't be neccesary, if the
-     // compiler would look into decode() and encode(). For example,
-     // utf8_filter.decode(b)  returns b immediately if b<=0x7f
-     // while utf16_filter.writer simply writes every cp < 0x7ff directly
-     // to the writer. So, the compiler should see this (because of inlining)
-     // and write b directly to the output.
-     // In fact, gcc-7 seems to do this and the code runs faster
-     // if this block is disabled. clang OTOH is a much weaker inliner
-     // and seems to forget things it should have learned from the inlined
-     // code paths.
-        if (conv_pair<SrcFilter,DestFilter>::is_passthrough(b))
-        {
-            *writer++=(b);
-            return 1;
-        }
-#endif
         return dst.encode_valid(src.decode(b,reader), writer);
     }
     template <int N, class R, class W>
