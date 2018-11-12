@@ -193,10 +193,6 @@ auto constexpr extract(T in)
 //
 // Codepoints in the surrogate area or after U++10FFFF are invalid.
 //
-// constexpr bool is_invalid_cp(char32_t u)
-//{
-//    return ((u >= 0xd800) && (u <= 0xdfff)) || (u > 0x10ffff);
-//}
 constexpr bool is_valid_cp(char32_t u)
 {
     return (u <= 0xd7ff) || ((u > 0xdfff) && (u <= 0x10ffff));
@@ -381,13 +377,12 @@ public:
     // 5   26  00200000 03FFFFFF 111110vv 10vvvvvv 10vvvvvv 10vvvvvv 10vvvvvv
     // 6   31  04000000 7FFFFFFF 1111110v 10vvvvvv 10vvvvvv 10vvvvvv 10vvvvvv 10vvvvvv
     //
-    // UTF-8 encoding for each Hex Max:
+    // maximum byte value for each encoding length:
     // 1    0x7f
     // 2    0xdf 0xbf
     // 3    0xef 0xbf 0xbf
     // 4    0xf4 0x8f 0xbf 0xbf
     // these are out switch values below
-#define BRANCHLESS 1
     template <class In>
     static char32_t XLANG_FORCE_INLINE decode(char8_t b, In&& in)
     {
@@ -402,30 +397,19 @@ public:
         {
             char32_t cp = 0;
             char8_t c = *in++;
-#if BRANCHLESS
             auto fail = (store_ck<0xc0, 6, 5>(cp, b) | store_ck<0x80, 0, 6>(cp, c));
             GSL_ASSUME(cp <= mask<5+6>());
             if (!fail && (cp >= 0x80)) return cp;
-#else
-            auto fail = (store_ck<0xc0, 6, 5>(cp, b) || store_ck<0x80, 0, 6>(cp, c));
-            if (!fail && (cp >= 0x80)) return cp;
-#endif
         }
         else if (b <= 0xef) // 0x800..0xffff
         {
             char32_t cp = 0;
             char8_t c = *in++;
             char8_t d = *in++;
-#if BRANCHLESS
             auto fail = (store_nck<0xe0, 12, 4>(cp, b) | store_ck<0x80, 6, 6>(cp, c) |
                          store_ck<0x80, 0, 6>(cp, d));
             GSL_ASSUME(cp <= mask<4+6+6>());
             if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
-#else
-            auto fail = (store_ck<0xe0, 12, 4>(cp, b) || store_ck<0x80, 6, 6>(cp, c) ||
-                         store_ck<0x80, 0, 6>(cp, d));
-            if (!fail && (cp >= 0x800) && is_valid_cp(cp)) return cp;
-#endif
         }
         else if (b <= 0xf4) // 0x10000-0x10ffff
         {
@@ -433,17 +417,11 @@ public:
             char8_t c = *in++;
             char8_t d = *in++;
             char8_t e = *in++;
-#if BRANCHLESS
             auto fail = (store_nck<0xf0, 18, 3>(cp, b) | store_ck<0x80, 12, 6>(cp, c) |
                          store_ck<0x80, 6, 6>(cp, d) | store_ck<0x80, 0, 6>(cp, e));
             GSL_ASSUME(cp <= mask<3+6+6+6>()); // 0x1FFFFF
 
             if (!fail && (cp >= 0x10000) && (cp <= 0x10ffff)) return cp;
-#else
-            auto fail = (store_ck<0xf0, 18, 3>(cp, b) || store_ck<0x80, 12, 6>(cp, c) ||
-                         store_ck<0x80, 6, 6>(cp, d) || store_ck<0x80, 0, 6>(cp, e));
-            if (!fail && (cp >= 0x10000) && (cp <= 0x10ffff)) return cp;
-#endif
         }
         invalid();
     }
@@ -518,10 +496,14 @@ struct transformer
             // 'N' is the number of code points that are safe to read or write.
             size_t s=0;
 #ifndef USE_SSE2
+            // try to convert 4 characters at once. Requires an arch with unaligned access.
+            //
             if constexpr (std::is_same<SrcFilter,utf8_filter>::value)
             {
-                auto v=(uint32_t*)&*reader;
-                if ((*v & 0x80808080)==0)
+                // respect strict aliasing and let the compiler decide how to read an uint32_t from a char *.
+                uint32_t v;
+                memcpy(&v,&*reader,sizeof(v))
+                if ((v & 0x80808080)==0)
                 {
                     writer[0]=reader[0];
                     writer[1]=reader[1];
