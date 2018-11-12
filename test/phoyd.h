@@ -502,7 +502,7 @@ struct transformer
             {
                 // respect strict aliasing and let the compiler decide how to read an uint32_t from a char *.
                 uint32_t v;
-                memcpy(&v,&*reader,sizeof(v))
+                memcpy(&v,&*reader,sizeof(v));
                 if ((v & 0x80808080)==0)
                 {
                     writer[0]=reader[0];
