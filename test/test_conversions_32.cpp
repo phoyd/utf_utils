@@ -359,6 +359,9 @@ Convert32_KewbSse(string const& src, size_t reps, u32string& dst)
 #endif
 //--------------------------------------------------------------------------------------------------
 //
+
+static std::string current_test_file="unknown";
+
 int64_t
 TestOneConversion32
 (TestFn32 fn, string const& src, size_t reps, u32string const& answer, char const* name)
@@ -379,8 +382,13 @@ TestOneConversion32
 
     double mups=1.0*src.size()*reps*(1000.0/tmdiff)/1e6;
     double mpps=1.0*src.size()*reps*(1000.0/tmdiff)/1e6;
+    const char *algoname=((name != nullptr) ? name : "");
+
     printf("UTF-8 to UTF-32 took %4u msec (%zu/%zu units/points, %f munits/sec, %f mpoints/sec) (%zu reps) (%s)\n",
-            (uint32_t) tmdiff, src.size(), dst.size(), mups, mpps, reps, ((name != nullptr) ? name : ""));
+            (uint32_t) tmdiff, src.size(), dst.size(), mups, mpps, reps, algoname);
+    // grepable string with all the above infos, for import in to database.
+    // algo function time srcsize dstsize testfile
+    printf("@utf_utils;%s;%s;%zu;%zu;%zu;%s\n","u8u16",algoname,tmdiff,src.size(),dst.size(),current_test_file.c_str());
 
     if (dst != answer)
     {
@@ -414,6 +422,7 @@ TestAllConversions32(string const& fname, bool isFile, size_t repShift, bool tbl
         }
         return tuple<name_list, time_list>(algos, times);
     }
+    current_test_file=fname;
 
     //- Figure out the number of reps to perform.  If repShift is less than 32, then the reps
     //  are computed such that the total amount of input text that is processed is approximately

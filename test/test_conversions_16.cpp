@@ -362,6 +362,9 @@ Convert16_KewbSse(string const& src, size_t reps, u16string& dst)
 #endif
 //--------------------------------------------------------------------------------------------------
 //
+
+static std::string current_test_file="unknown";
+
 int64_t
 TestOneConversion16
 (TestFn16 fn, string const& src, size_t reps, u16string const& answer, char const* name)
@@ -382,9 +385,12 @@ TestOneConversion16
 
     double mups=1.0*src.size()*reps*(1000.0/tmdiff)/1e6;
     double mpps=1.0*dst.size()*reps*(1000.0/tmdiff)/1e6;
+    const char *algoname=((name != nullptr) ? name : "");
     printf("UTF-8 to UTF-16 took %4u msec (%zu/%zu units/units, %f munits/sec, %f mpoints/s) (%zu reps) (%s)\n",
-        (uint16_t) tmdiff, src.size(), dst.size(), mups, mpps, reps, ((name != nullptr) ? name : ""));
-
+        (uint16_t) tmdiff, src.size(), dst.size(), mups, mpps, reps, algoname);
+    // grepable string with all the above infos, for import in to database.
+    // algo function time srcsize dstsize testfile
+    printf("@utf_utils;%s;%s;%zu;%zu;%zu;%s\n","u8u16",algoname,tmdiff,src.size(),dst.size(),current_test_file.c_str());
     if (dst != answer)
     {
         printf("error: result for %s differs from iconv()\n", name);
@@ -417,7 +423,7 @@ TestAllConversions16(string const& fname, bool isFile, size_t repShift, bool tbl
         }
         return tuple<name_list, time_list>(algos, times);
     }
-
+    current_test_file=fname;
     //- Figure out the number of reps to perform.  If repShift is less than 32, then the reps
     //  are computed such that the total amount of input text that is processed is approximately
     //  equal to 2^^repShift.  For example, if repShift is 28, then the reps will be such that
