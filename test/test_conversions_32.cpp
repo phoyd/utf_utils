@@ -388,7 +388,7 @@ TestOneConversion32
             (uint32_t) tmdiff, src.size(), dst.size(), mups, mpps, reps, algoname);
     // grepable string with all the above infos, for import in to database.
     // algo function time srcsize dstsize testfile
-    printf("@utf_utils;%s;%s;%llu;%zu;%zu;%s\n","u8u16",algoname,(size_t)tmdiff,src.size(),dst.size(),current_test_file.c_str());
+    printf("@utf_utils;%s;%s;%zu;%zu;%zu;%s\n","u8u16",algoname,(size_t)tmdiff,src.size(),dst.size(),current_test_file.c_str());
 
     if (dst != answer)
     {
